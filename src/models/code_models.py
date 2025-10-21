@@ -5,7 +5,7 @@ These Pydantic models provide type-safe representations of
 parsed code and its metadata for the code review system.
 """
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 class CodeMetadata(BaseModel):
@@ -95,9 +95,8 @@ class ParsedCode(BaseModel):
             "has_errors": self.has_syntax_errors,
         }
     
-    class Config:
-        """Pydantic model configuration."""
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "content": "def hello():\n    return 'Hello, World!'\n",
                 "language": "python",
@@ -120,3 +119,4 @@ class ParsedCode(BaseModel):
                 "syntax_errors": [],
             }
         }
+    )
