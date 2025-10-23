@@ -386,3 +386,269 @@ class TestCodeParserPerformance:
         
         assert result1.content == result2.content
         assert result1.metadata.line_count == result2.metadata.line_count
+
+
+class TestCodeModelsValidation:
+    """Test validation in code models."""
+    
+    def test_comment_ratio_validation(self):
+        """Test that comment ratio is validated."""
+        from pydantic import ValidationError
+        
+        # Valid ratios
+        metadata = CodeMetadata(comment_ratio=0.5)
+        assert metadata.comment_ratio == 0.5
+        
+        # Invalid ratios should fail
+        with pytest.raises(ValidationError):
+            CodeMetadata(comment_ratio=1.5)
+        
+        with pytest.raises(ValidationError):
+            CodeMetadata(comment_ratio=-0.1)
+    
+    def test_parsed_code_language_lowercase(self):
+        """Test that language is converted to lowercase."""
+        metadata = CodeMetadata()
+        parsed = ParsedCode(
+            content="test",
+            language="PYTHON",
+            metadata=metadata
+        )
+        
+        assert parsed.language == "python"
+    
+    def test_parsed_code_is_valid_method(self):
+        """Test is_valid method."""
+        metadata = CodeMetadata()
+        
+        # Valid code
+        valid_code = ParsedCode(
+            content="test",
+            language="python",
+            metadata=metadata,
+            has_syntax_errors=False
+        )
+        assert valid_code.is_valid() is True
+        
+        # Invalid code
+        invalid_code = ParsedCode(
+            content="test",
+            language="python",
+            metadata=metadata,
+            has_syntax_errors=True
+        )
+        assert invalid_code.is_valid() is False
+    
+    def test_parsed_code_get_summary(self):
+        """Test get_summary method."""
+        metadata = CodeMetadata(
+            line_count=10,
+            function_count=2,
+            class_count=1,
+            complexity=5.0
+        )
+        parsed = ParsedCode(
+            content="test",
+            language="python",
+            metadata=metadata,
+            has_syntax_errors=False
+        )
+        
+        summary = parsed.get_summary()
+        
+        assert summary["language"] == "python"
+        assert summary["lines"] == 10
+        assert summary["functions"] == 2
+        assert summary["classes"] == 1
+        assert summary["complexity"] == 5.0
+        assert summary["has_errors"] is False
+
+
+class TestCodeParserEdgeCases:
+    """Test edge cases and error conditions."""
+    
+    def test_parse_file_with_jsx_extension(self, tmp_path):
+        """Test parsing JSX file."""
+        parser = CodeParser()
+        test_file = tmp_path / "component.jsx"
+        test_file.write_text("const Component = () => <div>Hello</div>;")
+        
+        result = parser.parse_file(test_file)
+        
+        assert result.language == "javascript"
+    
+    def test_parse_file_with_tsx_extension(self, tmp_path):
+        """Test parsing TSX file."""
+        parser = CodeParser()
+        test_file = tmp_path / "component.tsx"
+        test_file.write_text("const Component: React.FC = () => <div>Hello</div>;")
+        
+        result = parser.parse_file(test_file)
+        
+        assert result.language == "typescript"
+    
+    def test_parse_file_with_unknown_extension_defaults_to_python(self, tmp_path):
+        """Test that unknown extensions default to python."""
+        parser = CodeParser()
+        test_file = tmp_path / "file.unknown"
+        test_file.write_text("def test(): pass")
+        
+        result = parser.parse_file(test_file)
+        
+        assert result.language == "python"
+
+
+class TestCodeMetadataValidation:
+    """Test CodeMetadata model validation."""
+    
+    def test_comment_ratio_validation_rejects_values_above_1(self):
+        """Test that comment_ratio > 1.0 is rejected."""
+        from pydantic import ValidationError
+        
+        with pytest.raises(ValidationError, match="comment_ratio"):
+            CodeMetadata(comment_ratio=1.5)
+    
+    def test_comment_ratio_validation_rejects_negative_values(self):
+        """Test that negative comment_ratio is rejected."""
+        from pydantic import ValidationError
+        
+        with pytest.raises(ValidationError, match="comment_ratio"):
+            CodeMetadata(comment_ratio=-0.1)
+    
+    def test_comment_ratio_accepts_valid_values(self):
+        """Test that valid comment_ratio values are accepted."""
+        metadata = CodeMetadata(comment_ratio=0.5)
+        assert metadata.comment_ratio == 0.5
+        
+        metadata = CodeMetadata(comment_ratio=0.0)
+        assert metadata.comment_ratio == 0.0
+        
+        metadata = CodeMetadata(comment_ratio=1.0)
+        assert metadata.comment_ratio == 1.0
+    
+    def test_comment_ratio_validator_method_directly(self):
+        """Test the validator method directly to cover the ValueError path."""
+        # This tests the actual validator logic beyond Pydantic's field constraints
+        with pytest.raises(ValueError, match="between 0 and 1"):
+            CodeMetadata.validate_comment_ratio(1.5)
+
+
+class TestCodeParserEdgeCases:
+    """Test edge cases and error handling in CodeParser."""
+    
+    def test_parse_python_class_with_docstring(self):
+        """Test parsing Python class with docstring."""
+        parser = CodeParser()
+        code = '''class MyClass:
+    """This is a class docstring."""
+    def method(self):
+        """Method docstring."""
+        pass
+'''
+        
+        result = parser.parse(code, language="python")
+        
+        assert result.metadata.class_count == 1
+        assert result.metadata.docstring_count == 2
+        assert result.metadata.has_docstrings is True
+    
+    def test_parse_python_with_boolean_operators(self):
+        """Test parsing Python code with boolean operators (and/or)."""
+        parser = CodeParser()
+        code = '''def complex_check(a, b, c, d):
+    if a and b or c and d:
+        return True
+    return False
+'''
+        
+        result = parser.parse(code, language="python")
+        
+        # Should detect increased complexity due to boolean operators
+        assert result.metadata.complexity > 1
+    
+    def test_parse_javascript_with_syntax_errors(self):
+        """Test parsing JavaScript with syntax errors."""
+        parser = CodeParser()
+        code = "function test() { console.log('missing brace';"
+        
+        result = parser.parse(code, language="javascript")
+        
+        assert result.has_syntax_errors is True
+        assert len(result.syntax_errors) > 0
+    
+    def test_parse_javascript_with_unmatched_parentheses(self):
+        """Test parsing JavaScript with unmatched parentheses."""
+        parser = CodeParser()
+        code = "function test() { console.log('test'; }"
+        
+        result = parser.parse(code, language="javascript")
+        
+        assert result.has_syntax_errors is True
+        assert "parentheses" in result.syntax_errors[0].lower()
+    
+    def test_parse_file_with_encoding_error_strict_mode(self, tmp_path):
+        """Test parsing file with encoding error in strict mode."""
+        parser = CodeParser()
+        test_file = tmp_path / "bad_encoding.py"
+        
+        # Write file with latin-1 encoding
+        test_file.write_bytes(b"# \xe9\xe8\xe7\n def test(): pass")
+        
+        # Should raise exception in strict mode
+        with pytest.raises(UnicodeDecodeError):
+            parser.parse_file(test_file, encoding="ascii", errors="strict")
+    
+    def test_parse_file_with_encoding_error_replace_mode(self, tmp_path):
+        """Test parsing file with encoding error in replace mode."""
+        parser = CodeParser()
+        test_file = tmp_path / "bad_encoding.py"
+        
+        # Write file with latin-1 encoding
+        test_file.write_bytes(b"# \xe9\xe8\xe7\ndef test(): pass")
+        
+        # Should handle gracefully with replace mode
+        result = parser.parse_file(test_file, encoding="ascii", errors="replace")
+        
+        assert result is not None
+        assert result.language == "python"
+    
+    def test_parse_file_no_extension_defaults_to_python(self, tmp_path):
+        """Test that files without extension default to Python."""
+        parser = CodeParser()
+        test_file = tmp_path / "noextension"
+        test_file.write_text("def test(): pass")
+        
+        result = parser.parse_file(test_file)
+        
+        # Should default to python when no extension match
+        assert result.language == "python"
+        assert result.file_path == str(test_file)
+    
+    def test_parse_file_encoding_error_fallback(self, tmp_path, monkeypatch):
+        """Test that parse_file falls back to replace mode when first read fails."""
+        from pathlib import Path
+        from unittest.mock import Mock, MagicMock
+        
+        parser = CodeParser()
+        test_file = tmp_path / "test.py"
+        test_file.write_text("def test(): pass")
+        
+        # Mock Path.read_text to raise UnicodeDecodeError on first call, succeed on second
+        original_read_text = Path.read_text
+        call_count = [0]
+        
+        def mock_read_text(self, encoding="utf-8", errors="strict"):
+            call_count[0] += 1
+            if call_count[0] == 1 and errors != "strict":
+                raise UnicodeDecodeError("utf-8", b"", 0, 1, "fake error")
+            return "def test(): pass"
+        
+        monkeypatch.setattr(Path, "read_text", mock_read_text)
+        
+        # Call with errors="ignore" to trigger fallback
+        result = parser.parse_file(test_file, encoding="utf-8", errors="ignore")
+        
+        assert result is not None
+        assert result.language == "python"
+        # Should have called read_text twice (first fail, then fallback)
+        assert call_count[0] == 2
