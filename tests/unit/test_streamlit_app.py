@@ -412,3 +412,12 @@ class TestReviewModes:
         
         assert config["enable_ai"] is True
         # May disable some rule-based for speed
+    
+    def test_get_review_mode_config_unknown_mode(self):
+        """get_review_mode_config should return default config for unknown mode."""
+        from src.streamlit_utils import get_review_mode_config, get_default_config
+        
+        config = get_review_mode_config("unknown_mode")
+        default = get_default_config()
+        
+        assert config == default

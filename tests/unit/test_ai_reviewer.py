@@ -351,6 +351,89 @@ These should be addressed immediately.'''
         
         # Should return empty result, not crash
         assert result.total_issues == 0
+    
+    def test_parse_response_with_null_content(self, mock_openai_client, simple_parsed_code):
+        """Should handle null/empty response content."""
+        mock_response = create_mock_response(None)
+        mock_openai_client.chat.completions.create.return_value = mock_response
+        
+        reviewer = AIReviewer(client=mock_openai_client)
+        result = reviewer.review(simple_parsed_code)
+        
+        assert result.total_issues == 0
+    
+    def test_parse_response_with_invalid_dict_format(self, mock_openai_client, simple_parsed_code):
+        """Should handle dict without 'issues' key."""
+        response_content = '{"data": "something else"}'
+        
+        mock_response = create_mock_response(response_content)
+        mock_openai_client.chat.completions.create.return_value = mock_response
+        
+        reviewer = AIReviewer(client=mock_openai_client)
+        result = reviewer.review(simple_parsed_code)
+        
+        assert result.total_issues == 0
+    
+    def test_parse_response_markdown_without_closing_backticks(self, mock_openai_client, simple_parsed_code):
+        """Should handle markdown JSON without proper closing."""
+        response_content = '```json\n{"issues": [{"severity": "high", "message": "Test"}]}'
+        
+        mock_response = create_mock_response(response_content)
+        mock_openai_client.chat.completions.create.return_value = mock_response
+        
+        reviewer = AIReviewer(client=mock_openai_client)
+        result = reviewer.review(simple_parsed_code)
+        
+        # Should return empty result when markdown is malformed
+        assert result.total_issues == 0
+    
+    def test_parse_response_with_invalid_issue_data(self, mock_openai_client, simple_parsed_code):
+        """Should handle issues with missing fields using defaults."""
+        response_content = '''
+        {
+            "issues": [
+                {"severity": "high"},
+                {"message": "Missing severity"},
+                {"severity": "medium", "message": "Valid issue", "category": "security"}
+            ]
+        }
+        '''
+        
+        mock_response = create_mock_response(response_content)
+        mock_openai_client.chat.completions.create.return_value = mock_response
+        
+        reviewer = AIReviewer(client=mock_openai_client)
+        result = reviewer.review(simple_parsed_code)
+        
+        # All issues should be parsed with defaults for missing fields
+        assert result.total_issues == 3
+        assert result.issues[0].severity == Severity.HIGH
+        assert result.issues[0].message == ""  # Default empty message
+        assert result.issues[1].message == "Missing severity"
+        assert result.issues[1].severity == Severity.INFO  # Default severity
+        assert result.issues[2].message == "Valid issue"
+    
+    def test_parse_response_skips_truly_invalid_issues(self, mock_openai_client, simple_parsed_code):
+        """Should skip issues with invalid enum values."""
+        response_content = '''
+        {
+            "issues": [
+                {"severity": "invalid_severity", "message": "Bad severity"},
+                {"severity": "high", "category": "invalid_category", "message": "Bad category"},
+                {"severity": "medium", "message": "Valid issue", "category": "security"}
+            ]
+        }
+        '''
+        
+        mock_response = create_mock_response(response_content)
+        mock_openai_client.chat.completions.create.return_value = mock_response
+        
+        reviewer = AIReviewer(client=mock_openai_client)
+        result = reviewer.review(simple_parsed_code)
+        
+        # Should only include the valid issue (invalid enums should be skipped)
+        assert result.total_issues == 1
+        assert result.issues[0].message == "Valid issue"
 
 
 # ============================================================================
@@ -434,6 +517,22 @@ class TestAIReviewerUsageTracking:
         
         assert reviewer.total_tokens_used == 330  # 150 + 180
     
+    def test_handles_response_without_usage_data(self, mock_openai_client, simple_parsed_code):
+        """Should handle responses without usage data gracefully."""
+        mock_response = Mock(spec=ChatCompletion)
+        mock_response.choices = [
+            Mock(message=Mock(content='{"issues": []}'))
+        ]
+        mock_response.usage = None  # No usage data
+        
+        mock_openai_client.chat.completions.create.return_value = mock_response
+        
+        reviewer = AIReviewer(client=mock_openai_client)
+        reviewer.review(simple_parsed_code)
+        
+        # Should not crash, tokens should remain 0
+        assert reviewer.total_tokens_used == 0
+    
     def test_get_usage_stats(self, mock_openai_client, simple_parsed_code):
         """Should provide usage statistics."""
         mock_response = create_mock_response('{"issues": []}', 100, 50)
@@ -460,6 +559,34 @@ class TestAIReviewerUsageTracking:
         # 1000 * $2.50/1M + 500 * $10/1M = $0.0025 + $0.005 = $0.0075
         assert stats["estimated_cost_usd"] > 0
         assert stats["estimated_cost_usd"] < 0.01
+    
+    def test_estimates_cost_for_gpt4_legacy(self, mock_openai_client, simple_parsed_code):
+        """Should estimate cost correctly for GPT-4 legacy model."""
+        config = {"model": "gpt-4"}
+        mock_response = create_mock_response('{"issues": []}', 1000, 500)
+        mock_openai_client.chat.completions.create.return_value = mock_response
+        
+        reviewer = AIReviewer(client=mock_openai_client, config=config)
+        reviewer.review(simple_parsed_code)
+        
+        stats = reviewer.get_usage_stats()
+        # 1000 * $30/1M + 500 * $60/1M = $0.03 + $0.03 = $0.06
+        assert stats["estimated_cost_usd"] > 0.05
+        assert stats["estimated_cost_usd"] < 0.07
+    
+    def test_estimates_cost_for_other_models(self, mock_openai_client, simple_parsed_code):
+        """Should estimate cost correctly for other models (default pricing)."""
+        config = {"model": "gpt-3.5-turbo"}
+        mock_response = create_mock_response('{"issues": []}', 1000, 500)
+        mock_openai_client.chat.completions.create.return_value = mock_response
+        
+        reviewer = AIReviewer(client=mock_openai_client, config=config)
+        reviewer.review(simple_parsed_code)
+        
+        stats = reviewer.get_usage_stats()
+        # 1000 * $0.50/1M + 500 * $1.50/1M = $0.0005 + $0.00075 = $0.00125
+        assert stats["estimated_cost_usd"] > 0
+        assert stats["estimated_cost_usd"] < 0.002
 
 
 # ============================================================================
