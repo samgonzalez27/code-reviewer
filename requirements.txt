@@ -2,6 +2,7 @@
 openai>=2.3.0
 python-dotenv>=1.1.0
 pydantic>=2.12.0
+streamlit>=1.28.0
 
 # Testing dependencies
 pytest>=8.4.0
