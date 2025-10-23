@@ -399,7 +399,30 @@ class ReviewEngine:
         if self.config.get("enable_security", True):
             reviewers.append(SecurityReviewer(config=self.config))
         
+        # Add AI reviewer if enabled
+        if self.config.get("enable_ai", False):
+            reviewers.append(self._create_ai_reviewer())
+        
         return reviewers
+    
+    def _create_ai_reviewer(self) -> ReviewStrategy:
+        """Create AIReviewer with appropriate configuration."""
+        from src.services.ai_reviewer import AIReviewer
+        
+        # Extract AI-specific config
+        ai_config = {}
+        if "ai_model" in self.config:
+            ai_config["model"] = self.config["ai_model"]
+        if "ai_temperature" in self.config:
+            ai_config["temperature"] = self.config["ai_temperature"]
+        if "ai_max_tokens" in self.config:
+            ai_config["max_tokens"] = self.config["ai_max_tokens"]
+        if "ai_timeout" in self.config:
+            ai_config["timeout"] = self.config["ai_timeout"]
+        if "ai_system_prompt" in self.config:
+            ai_config["system_prompt"] = self.config["ai_system_prompt"]
+        
+        return AIReviewer(config=ai_config)
     
     def review(self, parsed_code: ParsedCode) -> ReviewResult:
         """

@@ -7,6 +7,7 @@ different review strategies and the orchestration engine.
 Following TDD: Write tests first (RED), then implement (GREEN), then refactor.
 """
 import pytest
+from unittest.mock import Mock, patch
 from src.services.review_engine import (
     ReviewEngine,
     ReviewStrategy,
@@ -697,3 +698,177 @@ class TestReviewEngineEdgeCases:
         # Should not crash, should return a result
         assert result is not None
         assert isinstance(result, ReviewResult)
+
+
+# ============================================================================
+# Test Hybrid Review System (AI + Rule-Based)
+# ============================================================================
+
+class TestHybridReviewSystem:
+    """Test hybrid review system combining AI and rule-based reviewers."""
+    
+    def test_review_engine_can_include_ai_reviewer(self):
+        """ReviewEngine should accept AIReviewer in reviewers list."""
+        from unittest.mock import Mock
+        from src.services.ai_reviewer import AIReviewer
+        
+        mock_client = Mock()
+        ai_reviewer = AIReviewer(client=mock_client)
+        
+        engine = ReviewEngine(reviewers=[ai_reviewer])
+        
+        assert len(engine.reviewers) == 1
+        assert isinstance(engine.reviewers[0], AIReviewer)
+    
+    def test_review_engine_creates_ai_reviewer_when_enabled(self):
+        """ReviewEngine should create AIReviewer when enable_ai config is True."""
+        from unittest.mock import patch, Mock
+        
+        config = {
+            "enable_style": False,
+            "enable_complexity": False,
+            "enable_security": False,
+            "enable_ai": True,
+        }
+        
+        # Mock OpenAI client creation
+        with patch('src.services.ai_reviewer.OpenAI') as mock_openai_class:
+            with patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key'}):
+                engine = ReviewEngine(config=config)
+                
+                # Should have 1 reviewer (AIReviewer only)
+                assert len(engine.reviewers) == 1
+                from src.services.ai_reviewer import AIReviewer
+                assert isinstance(engine.reviewers[0], AIReviewer)
+    
+    def test_review_engine_combines_rule_based_and_ai_reviewers(self):
+        """ReviewEngine should combine both rule-based and AI reviewers."""
+        from unittest.mock import Mock
+        from src.services.ai_reviewer import AIReviewer
+        
+        config = {
+            "enable_style": True,
+            "enable_complexity": True,
+            "enable_security": True,
+            "enable_ai": True,
+        }
+        
+        mock_client = Mock()
+        
+        # Create engine with hybrid config
+        with patch('src.services.ai_reviewer.OpenAI', return_value=mock_client):
+            with patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key'}):
+                engine = ReviewEngine(config=config)
+                
+                # Should have 4 reviewers total
+                assert len(engine.reviewers) == 4
+                
+                # Check we have all types
+                reviewer_types = [type(r).__name__ for r in engine.reviewers]
+                assert 'StyleReviewer' in reviewer_types
+                assert 'ComplexityReviewer' in reviewer_types
+                assert 'SecurityReviewer' in reviewer_types
+                assert 'AIReviewer' in reviewer_types
+    
+    def test_hybrid_review_combines_all_issues(self):
+        """Hybrid review should combine issues from all reviewers."""
+        from unittest.mock import Mock, patch
+        from src.services.code_parser import CodeParser
+        
+        # Code with both rule-based and AI-detectable issues
+        code = """def badFunctionName():
+    password="secret123"
+    return password
+"""
+        
+        parser = CodeParser()
+        parsed_code = parser.parse(code, "python")
+        
+        # Mock AI reviewer response
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_response.choices = [Mock()]
+        mock_response.choices[0].message.content = '{"issues": [{"severity": "high", "category": "security", "message": "AI detected hardcoded credential", "line_number": 2}]}'
+        mock_response.usage = Mock(prompt_tokens=100, completion_tokens=50, total_tokens=150)
+        mock_client.chat.completions.create.return_value = mock_response
+        
+        # Create hybrid engine
+        from src.services.ai_reviewer import AIReviewer
+        ai_reviewer = AIReviewer(client=mock_client)
+        
+        engine = ReviewEngine(reviewers=[
+            StyleReviewer(),
+            SecurityReviewer(),
+            ai_reviewer
+        ])
+        
+        result = engine.review(parsed_code)
+        
+        # Should have issues from both rule-based and AI
+        assert result.total_issues >= 2  # At least one from rules, one from AI
+        
+        # Should have both style and security issues
+        categories = {issue.category for issue in result.issues}
+        assert IssueCategory.STYLE in categories or IssueCategory.SECURITY in categories
+    
+    def test_hybrid_review_default_config_includes_ai(self):
+        """Default ReviewEngine config should include AI reviewer."""
+        from unittest.mock import Mock, patch
+        
+        config = {"enable_ai": True}
+        
+        mock_client = Mock()
+        with patch('src.services.ai_reviewer.OpenAI', return_value=mock_client):
+            with patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key'}):
+                engine = ReviewEngine(config=config)
+                
+                # Should have AI reviewer among defaults
+                from src.services.ai_reviewer import AIReviewer
+                has_ai = any(isinstance(r, AIReviewer) for r in engine.reviewers)
+                assert has_ai
+    
+    def test_hybrid_review_ai_can_be_disabled(self):
+        """AI reviewer should be disabled when enable_ai is False."""
+        config = {
+            "enable_style": True,
+            "enable_ai": False,
+        }
+        
+        engine = ReviewEngine(config=config)
+        
+        # Should not have AI reviewer
+        from src.services.ai_reviewer import AIReviewer
+        has_ai = any(isinstance(r, AIReviewer) for r in engine.reviewers)
+        assert not has_ai
+    
+    def test_hybrid_review_passes_ai_config_to_reviewer(self):
+        """ReviewEngine should pass AI-specific config to AIReviewer."""
+        from unittest.mock import Mock, patch
+        
+        config = {
+            "enable_ai": True,
+            "ai_model": "gpt-4",
+            "ai_temperature": 0.5,
+            "ai_max_tokens": 1500,
+            "ai_timeout": 45,
+            "ai_system_prompt": "Custom prompt for testing",
+        }
+        
+        mock_client = Mock()
+        with patch('src.services.ai_reviewer.OpenAI', return_value=mock_client):
+            with patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key'}):
+                engine = ReviewEngine(config=config)
+                
+                # Find AI reviewer
+                from src.services.ai_reviewer import AIReviewer
+                ai_reviewers = [r for r in engine.reviewers if isinstance(r, AIReviewer)]
+                
+                assert len(ai_reviewers) == 1
+                ai_reviewer = ai_reviewers[0]
+                
+                # Check all config was passed
+                assert ai_reviewer.model == "gpt-4"
+                assert ai_reviewer.temperature == 0.5
+                assert ai_reviewer.max_tokens == 1500
+                assert ai_reviewer.timeout == 45
+                assert ai_reviewer.system_prompt == "Custom prompt for testing"
