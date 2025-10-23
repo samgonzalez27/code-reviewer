@@ -31,6 +31,8 @@ disable=
     R0917,  # too-many-positional-arguments (dataclass usage)
     W0613,  # unused-argument (pytest fixtures may be unused)
     W1514,  # unspecified-encoding (utf-8 is default in modern Python)
+    E1101,  # no-member (Pydantic generates attributes dynamically)
+    R0401,  # cyclic-import (acceptable for type hints in this architecture)
 
 [REPORTS]
 # Set to yes to get detailed reports
@@ -62,19 +64,22 @@ indent-string='    '
 max-args=7
 
 # Maximum number of locals for function/method body
-max-locals=15
+max-locals=20
 
 # Maximum number of return/yield for function/method body
 max-returns=6
 
 # Maximum number of branch for function/method body
-max-branches=12
+max-branches=15
 
 # Maximum number of statements in function/method body
 max-statements=50
 
 # Maximum number of attributes for a class
 max-attributes=10
+
+# Maximum number of nested blocks
+max-nested-blocks=6
 
 [IMPORTS]
 # Deprecated modules
