@@ -5,7 +5,6 @@ This package contains Pydantic models for type-safe data representation.
 """
 from src.models.code_models import CodeMetadata, ParsedCode
 from src.models.review_models import ReviewResult, ReviewIssue, Severity, IssueCategory
-from src.models.legacy_models import MyMainModel
 
 __all__ = [
     "CodeMetadata",
@@ -14,5 +13,4 @@ __all__ = [
     "ReviewIssue",
     "Severity",
     "IssueCategory",
-    "MyMainModel",
 ]
