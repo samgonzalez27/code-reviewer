@@ -151,10 +151,9 @@ def get_quality_score_color(score: float) -> str:
     """
     if score >= 90:
         return "green"
-    elif score >= 70:
+    if score >= 70:
         return "yellow"
-    else:
-        return "red"
+    return "red"
 
 
 # ============================================================================
@@ -223,7 +222,7 @@ def run_review(code: str, language: str, config: Dict[str, Any]) -> Optional[Rev
         result = engine.review(parsed_code)
         
         return result
-    except Exception as e:
+    except Exception:
         # Return None or error result
         return None
 
@@ -292,7 +291,8 @@ def export_to_markdown(result: ReviewResult) -> str:
 """
     
     for i, issue in enumerate(result.issues, 1):
-        md += f"### {i}. {format_severity_with_color(issue.severity)} - {issue.category.value.title()}\n"
+        severity_color = format_severity_with_color(issue.severity)
+        md += f"### {i}. {severity_color} - {issue.category.value.title()}\n"
         md += f"**Line**: {issue.line_number or 'N/A'}\n\n"
         md += f"**Message**: {issue.message}\n\n"
         if issue.suggestion:
@@ -388,7 +388,7 @@ def get_review_mode_config(mode: str) -> Dict[str, Any]:
             "enable_security": True,
             "enable_ai": False
         }
-    elif mode == "standard":
+    if mode == "standard":
         return {
             "enable_style": True,
             "enable_complexity": True,
@@ -396,7 +396,7 @@ def get_review_mode_config(mode: str) -> Dict[str, Any]:
             "enable_ai": True,
             "ai_model": "gpt-4o-mini"
         }
-    elif mode == "deep":
+    if mode == "deep":
         return {
             "enable_style": False,
             "enable_complexity": False,
@@ -404,5 +404,5 @@ def get_review_mode_config(mode: str) -> Dict[str, Any]:
             "enable_ai": True,
             "ai_model": "gpt-4o"
         }
-    else:
-        return get_default_config()
+    
+    return get_default_config()

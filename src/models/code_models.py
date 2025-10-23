@@ -23,15 +23,26 @@ class CodeMetadata(BaseModel):
     complexity: float = Field(default=1.0, ge=1.0, description="Cyclomatic complexity")
     
     # Advanced metadata
-    function_names: List[str] = Field(default_factory=list, description="List of function names")
-    class_names: List[str] = Field(default_factory=list, description="List of class names")
-    has_docstrings: bool = Field(default=False, description="Whether code contains docstrings")
+    function_names: List[str] = Field(
+        default_factory=list, description="List of function names"
+    )
+    class_names: List[str] = Field(
+        default_factory=list, description="List of class names"
+    )
+    has_docstrings: bool = Field(
+        default=False, description="Whether code contains docstrings"
+    )
     docstring_count: int = Field(default=0, ge=0, description="Number of docstrings")
-    comment_ratio: float = Field(default=0.0, ge=0.0, le=1.0, description="Ratio of comments to total lines")
+    comment_ratio: float = Field(
+        default=0.0, ge=0.0, le=1.0, description="Ratio of comments to total lines"
+    )
     
     # Additional metrics
     blank_line_count: int = Field(default=0, ge=0, description="Number of blank lines")
-    code_line_count: int = Field(default=0, ge=0, description="Number of actual code lines (excluding comments/blanks)")
+    code_line_count: int = Field(
+        default=0, ge=0,
+        description="Number of actual code lines (excluding comments/blanks)"
+    )
     
     @field_validator('comment_ratio')
     @classmethod
@@ -53,16 +64,26 @@ class ParsedCode(BaseModel):
     metadata: CodeMetadata = Field(description="Extracted metadata about the code")
     
     # Error tracking
-    has_syntax_errors: bool = Field(default=False, description="Whether syntax errors were detected")
-    syntax_errors: List[str] = Field(default_factory=list, description="List of syntax error messages")
+    has_syntax_errors: bool = Field(
+        default=False, description="Whether syntax errors were detected"
+    )
+    syntax_errors: List[str] = Field(
+        default_factory=list, description="List of syntax error messages"
+    )
     
     # Optional file information
-    file_path: Optional[str] = Field(default=None, description="Path to source file if parsed from file")
+    file_path: Optional[str] = Field(
+        default=None, description="Path to source file if parsed from file"
+    )
     encoding: str = Field(default="utf-8", description="Character encoding of the source")
     
     # Parsing metadata
-    parse_timestamp: Optional[str] = Field(default=None, description="ISO timestamp of when parsing occurred")
-    parser_version: str = Field(default="1.0.0", description="Version of the parser used")
+    parse_timestamp: Optional[str] = Field(
+        default=None, description="ISO timestamp of when parsing occurred"
+    )
+    parser_version: str = Field(
+        default="1.0.0", description="Version of the parser used"
+    )
     
     @field_validator('language')
     @classmethod

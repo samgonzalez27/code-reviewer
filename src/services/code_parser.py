@@ -27,12 +27,10 @@ class LanguageParser(ABC):
     @abstractmethod
     def parse(self, code: str) -> CodeMetadata:
         """Parse code and extract metadata."""
-        pass
     
     @abstractmethod
     def check_syntax(self, code: str) -> tuple[bool, List[str]]:
         """Check for syntax errors. Returns (has_errors, error_list)."""
-        pass
 
 
 class PythonParser(LanguageParser):
@@ -356,7 +354,7 @@ class CodeParser:
         # Read file content
         try:
             content = path.read_text(encoding=encoding, errors=errors)
-        except UnicodeDecodeError as e:
+        except UnicodeDecodeError:
             # Handle encoding errors based on errors parameter
             if errors == "strict":
                 raise

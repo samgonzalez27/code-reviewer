@@ -41,16 +41,28 @@ class ReviewIssue(BaseModel):
     message: str = Field(description="Human-readable description of the issue")
     
     # Location information
-    line_number: Optional[int] = Field(default=None, description="Line number where issue occurs")
-    column_number: Optional[int] = Field(default=None, description="Column number where issue occurs")
-    code_snippet: Optional[str] = Field(default=None, description="Code snippet showing the issue")
+    line_number: Optional[int] = Field(
+        default=None, description="Line number where issue occurs"
+    )
+    column_number: Optional[int] = Field(
+        default=None, description="Column number where issue occurs"
+    )
+    code_snippet: Optional[str] = Field(
+        default=None, description="Code snippet showing the issue"
+    )
     
     # Suggestion for fixing
-    suggestion: Optional[str] = Field(default=None, description="Suggested fix or improvement")
+    suggestion: Optional[str] = Field(
+        default=None, description="Suggested fix or improvement"
+    )
     
     # Additional context
-    rule_id: Optional[str] = Field(default=None, description="Identifier for the rule that triggered this issue")
-    documentation_url: Optional[str] = Field(default=None, description="URL to documentation about this issue")
+    rule_id: Optional[str] = Field(
+        default=None, description="Identifier for the rule that triggered this issue"
+    )
+    documentation_url: Optional[str] = Field(
+        default=None, description="URL to documentation about this issue"
+    )
     
     def is_critical(self) -> bool:
         """Check if this issue is critical severity."""
@@ -101,8 +113,13 @@ class ReviewResult(BaseModel):
     passed: bool = Field(default=True, description="Whether the code passes review")
     
     # Metadata
-    reviewer_name: str = Field(default="CodeReviewer", description="Name of the reviewer that generated this result")
-    review_timestamp: Optional[str] = Field(default=None, description="ISO timestamp of when review was performed")
+    reviewer_name: str = Field(
+        default="CodeReviewer",
+        description="Name of the reviewer that generated this result"
+    )
+    review_timestamp: Optional[str] = Field(
+        default=None, description="ISO timestamp of when review was performed"
+    )
     
     @field_validator('quality_score')
     @classmethod

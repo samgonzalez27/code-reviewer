@@ -18,7 +18,8 @@ from src.models.review_models import ReviewResult, ReviewIssue, Severity, IssueC
 class AIReviewer(ReviewStrategy):
     """AI-powered code reviewer using OpenAI's GPT models."""
     
-    DEFAULT_SYSTEM_PROMPT = """You are an expert code reviewer. Analyze code for bugs, security issues, performance problems, and best practices violations.
+    DEFAULT_SYSTEM_PROMPT = """You are an expert code reviewer. Analyze code for bugs, \
+security issues, performance problems, and best practices violations.
 
 IMPORTANT: You must respond with ONLY valid JSON in this exact format:
 {

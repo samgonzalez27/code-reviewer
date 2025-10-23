@@ -37,7 +37,6 @@ class ReviewStrategy(ABC):
         Returns:
             ReviewResult with issues found
         """
-        pass
 
 
 class StyleReviewer(ReviewStrategy):
@@ -154,17 +153,14 @@ class StyleReviewer(ReviewStrategy):
     
     def _is_snake_case(self, name: str) -> bool:
         """Check if name is in snake_case format."""
-        import re
         return bool(re.match(r'^[a-z_][a-z0-9_]*$', name))
     
     def _is_pascal_case(self, name: str) -> bool:
         """Check if name is in PascalCase format."""
-        import re
         return bool(re.match(r'^[A-Z][a-zA-Z0-9]*$', name))
     
     def _to_snake_case(self, name: str) -> str:
         """Convert name to snake_case."""
-        import re
         # Insert underscore before uppercase letters
         s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
         return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
@@ -214,12 +210,23 @@ class ComplexityReviewer(ReviewStrategy):
                         complexity = self._calculate_function_complexity(node)
                         
                         if complexity > self.max_complexity:
+                            severity = (
+                                Severity.MEDIUM 
+                                if complexity <= self.max_complexity * 1.5 
+                                else Severity.HIGH
+                            )
                             result.add_issue(ReviewIssue(
-                                severity=Severity.MEDIUM if complexity <= self.max_complexity * 1.5 else Severity.HIGH,
+                                severity=severity,
                                 category=IssueCategory.COMPLEXITY,
-                                message=f"Function '{node.name}' has high cyclomatic complexity: {complexity}",
+                                message=(
+                                    f"Function '{node.name}' has high "
+                                    f"cyclomatic complexity: {complexity}"
+                                ),
                                 line_number=node.lineno,
-                                suggestion=f"Consider refactoring to reduce complexity (max: {self.max_complexity})",
+                                suggestion=(
+                                    f"Consider refactoring to reduce complexity "
+                                    f"(max: {self.max_complexity})"
+                                ),
                                 rule_id="COMPLEXITY001"
                             ))
             
@@ -266,10 +273,19 @@ class SecurityReviewer(ReviewStrategy):
     
     # Patterns for detecting hardcoded secrets
     SECRET_PATTERNS = [
-        (r'(?i)(api[_-]?key|apikey)\s*[=:]\s*["\']([a-zA-Z0-9_\-]{20,})["\']', 'API key'),
+        (
+            r'(?i)(api[_-]?key|apikey)\s*[=:]\s*["\']([a-zA-Z0-9_\-]{20,})["\']',
+            'API key'
+        ),
         (r'(?i)(password|passwd|pwd)\s*[=:]\s*["\']([^"\']{3,})["\']', 'password'),
-        (r'(?i)(secret|token)\s*[=:]\s*["\']([a-zA-Z0-9_\-]{20,})["\']', 'secret/token'),
-        (r'(?i)(aws[_-]?access[_-]?key|access[_-]?key[_-]?id)\s*[=:]\s*["\']([A-Z0-9]{20})["\']', 'AWS access key'),
+        (
+            r'(?i)(secret|token)\s*[=:]\s*["\']([a-zA-Z0-9_\-]{20,})["\']',
+            'secret/token'
+        ),
+        (
+            r'(?i)(aws[_-]?access[_-]?key|access[_-]?key[_-]?id)\s*[=:]\s*["\']([A-Z0-9]{20})["\']',
+            'AWS access key'
+        ),
         (r'(?i)sk-[a-zA-Z0-9]{20,}', 'OpenAI API key'),
     ]
     
@@ -299,14 +315,17 @@ class SecurityReviewer(ReviewStrategy):
         for i, line in enumerate(lines, 1):
             for pattern, secret_type in self.SECRET_PATTERNS:
                 matches = re.finditer(pattern, line)
-                for match in matches:
+                for _ in matches:
                     result.add_issue(ReviewIssue(
                         severity=Severity.CRITICAL,
                         category=IssueCategory.SECURITY,
                         message=f"Hardcoded {secret_type} detected",
                         line_number=i,
                         code_snippet=line.strip(),
-                        suggestion="Move sensitive data to environment variables or secure configuration",
+                        suggestion=(
+                            "Move sensitive data to environment variables "
+                            "or secure configuration"
+                        ),
                         rule_id="SEC001"
                     ))
         
@@ -325,7 +344,10 @@ class SecurityReviewer(ReviewStrategy):
                                     category=IssueCategory.SECURITY,
                                     message=f"Dangerous use of {node.func.id}() function",
                                     line_number=node.lineno,
-                                    suggestion=f"Avoid using {node.func.id}() as it can execute arbitrary code",
+                                    suggestion=(
+                                        f"Avoid using {node.func.id}() as it can "
+                                        "execute arbitrary code"
+                                    ),
                                     rule_id="SEC002"
                                 ))
             
@@ -454,12 +476,14 @@ class ReviewEngine:
                     min_severity = self.config.get("min_severity")
                     if min_severity:
                         severity_order = ["info", "low", "medium", "high", "critical"]
-                        if severity_order.index(issue.severity.value) < severity_order.index(min_severity):
+                        issue_idx = severity_order.index(issue.severity.value)
+                        min_idx = severity_order.index(min_severity)
+                        if issue_idx < min_idx:
                             continue
                     
                     combined_result.add_issue(issue)
                     
-            except Exception as e:
+            except Exception:
                 # Log error but continue with other reviewers (resilience)
                 # In production, this would use proper logging
                 continue
