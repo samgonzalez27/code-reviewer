@@ -18,7 +18,23 @@ from src.models.review_models import ReviewResult, ReviewIssue, Severity, IssueC
 class AIReviewer(ReviewStrategy):
     """AI-powered code reviewer using OpenAI's GPT models."""
     
-    DEFAULT_SYSTEM_PROMPT = """You are an expert code reviewer."""
+    DEFAULT_SYSTEM_PROMPT = """You are an expert code reviewer. Analyze code for bugs, security issues, performance problems, and best practices violations.
+
+IMPORTANT: You must respond with ONLY valid JSON in this exact format:
+{
+  "issues": [
+    {
+      "severity": "critical|high|medium|low|info",
+      "category": "security|bug_risk|performance|best_practices|style|complexity|documentation",
+      "message": "Clear description of the issue",
+      "line_number": 5,
+      "suggestion": "How to fix it"
+    }
+  ]
+}
+
+If no issues are found, return: {"issues": []}
+Do not include any text before or after the JSON."""
     
     def __init__(
         self,
@@ -110,22 +126,28 @@ class AIReviewer(ReviewStrategy):
         """Build the user prompt with code and context."""
         metadata = parsed_code.metadata
         
-        prompt = f"""Please review the following {parsed_code.language.upper()} code:
+        prompt = f"""Review this {parsed_code.language.upper()} code for issues:
 
-**Code Metadata:**
+Code Metadata:
 - Lines: {metadata.line_count}
 - Functions: {metadata.function_count}
 - Classes: {metadata.class_count}
 - Complexity: {metadata.complexity}
 - Has Docstrings: {metadata.has_docstrings}
 
-**Code:**
+Code to review:
 ```{parsed_code.language}
 {parsed_code.content}
 ```
 
-Analyze this code and return issues found.
-"""
+Identify all issues including:
+- Security vulnerabilities (SQL injection, hardcoded secrets, unsafe operations)
+- Potential bugs (logic errors, edge cases, error handling)
+- Performance problems (inefficient algorithms, unnecessary operations)
+- Code quality (naming, structure, readability, maintainability)
+- Best practices violations
+
+Return your findings as JSON only."""
         return prompt
     
     def _parse_ai_response(self, response: ChatCompletion) -> List[ReviewIssue]:
