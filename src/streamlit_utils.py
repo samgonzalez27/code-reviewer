@@ -13,6 +13,7 @@ from collections import defaultdict
 from src.models.review_models import ReviewResult, ReviewIssue, Severity, IssueCategory
 from src.services.code_parser import CodeParser
 from src.services.review_engine import ReviewEngine
+from src.models.code_fix_models import CodeFixResult, FixConfidence, FixStatus
 
 
 # ============================================================================
@@ -406,3 +407,102 @@ def get_review_mode_config(mode: str) -> Dict[str, Any]:
         }
     
     return get_default_config()
+
+
+def apply_fixes_to_code(
+    code: str,
+    fix_result: CodeFixResult,
+    min_confidence: str = "high"
+) -> str:
+    """
+    Apply generated fixes to source code.
+
+    Strategy:
+    - Filter fixes by confidence threshold.
+    - Sort fixes by line_start in descending order to avoid shifting lines
+      when applying multiple fixes.
+    - Prefer line-number based replacement when possible (safer),
+      otherwise fall back to a first-occurrence string replacement.
+
+    Args:
+        code: Original source code
+        fix_result: CodeFixResult containing fixes
+        min_confidence: Minimum confidence to apply (low/medium/high/verified/all)
+
+    Returns:
+        Modified source code with applicable fixes applied.
+    """
+    if not fix_result or not fix_result.fixes:
+        return code
+
+    # Normalize min_confidence
+    min_conf = min_confidence.lower() if isinstance(min_confidence, str) else str(min_confidence)
+    if min_conf == "all":
+        min_conf_enum = None
+    else:
+        try:
+            min_conf_enum = FixConfidence(min_conf)
+        except Exception:
+            # Default to high if unknown
+            min_conf_enum = FixConfidence.HIGH
+
+    # Map confidence to numeric order
+    order = {
+        FixConfidence.LOW: 0,
+        FixConfidence.MEDIUM: 1,
+        FixConfidence.HIGH: 2,
+        FixConfidence.VERIFIED: 3,
+    }
+
+    min_value = 0 if min_conf_enum is None else order.get(min_conf_enum, 2)
+
+    # Filter fixes
+    applicable = [f for f in fix_result.fixes if order.get(f.confidence, 0) >= min_value]
+
+    # Sort by line_start descending
+    applicable.sort(key=lambda f: getattr(f, "line_start", 0) or 0, reverse=True)
+
+    modified = code
+    lines = modified.split('\n')
+
+    for fix in applicable:
+        try:
+            ls = int(getattr(fix, "line_start", 1))
+            le = int(getattr(fix, "line_end", ls))
+        except Exception:
+            ls, le = 1, 1
+
+        # Use line-based replacement if line numbers are within range
+        if 1 <= ls <= len(lines):
+            # Adjust for 0-based index
+            start_idx = max(0, ls - 1)
+            end_idx = min(len(lines), le)
+            fixed_lines = (fix.fixed_code or "").split('\n')
+            # Replace the slice
+            lines[start_idx:end_idx] = fixed_lines
+            modified = "\n".join(lines)
+            # Update lines reference for subsequent fixes
+            lines = modified.split('\n')
+            # Mark fix as applied
+            try:
+                fix.status = FixStatus.APPLIED
+            except Exception:
+                pass
+            continue
+
+        # Fallback: string replace first occurrence
+        if fix.original_code and fix.original_code in modified:
+            modified = modified.replace(fix.original_code, fix.fixed_code or "", 1)
+            lines = modified.split('\n')
+            try:
+                fix.status = FixStatus.APPLIED
+            except Exception:
+                pass
+
+    # Update statistics on the result
+    try:
+        fix_result.update_statistics()
+    except Exception:
+        pass
+
+    return modified

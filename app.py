@@ -30,6 +30,7 @@ from src.streamlit_utils import (
     get_review_mode_config,
     build_config_from_ui_inputs
 )
+from src.streamlit_utils import apply_fixes_to_code
 from src.models.review_models import Severity
 
 
@@ -107,6 +108,19 @@ with st.sidebar:
         enable_style = st.checkbox("Style Checker", value=True, help="Check naming conventions, formatting")
         enable_complexity = st.checkbox("Complexity Analyzer", value=True, help="Check cyclomatic complexity")
         enable_security = st.checkbox("Security Scanner", value=True, help="Detect hardcoded secrets, vulnerabilities")
+        
+        st.subheader("Auto-Fix")
+        enable_auto_fix = st.checkbox(
+            "Enable Auto-Fix (AI-generated)",
+            value=False,
+            help="Automatically generate fixes for detected issues (requires OpenAI API key)"
+        )
+        apply_threshold = st.selectbox(
+            "Apply fixes threshold",
+            ["high", "medium", "low", "all"],
+            index=0,
+            help="When applying fixes, only apply fixes at or above this confidence"
+        )
         
         st.subheader("AI Configuration")
         enable_ai = st.checkbox("AI Reviewer", value=(selected_mode in ["standard", "deep"]), help="Use OpenAI for semantic analysis")
@@ -213,6 +227,11 @@ if review_button:
                 "ai_temperature": ai_temperature if enable_ai else 0.3,
                 "max_complexity": max_complexity
             })
+        # Inject auto-fix setting into config
+        try:
+            config["enable_auto_fix"] = enable_auto_fix
+        except Exception:
+            config.update({"enable_auto_fix": enable_auto_fix})
         
         # Show progress
         with st.spinner("🔍 Reviewing your code..."):
@@ -376,6 +395,57 @@ if review_button:
                     file_name="code_review_results.csv",
                     mime="text/csv"
                 )
+
+            # ==========================================================================
+            # Auto-fix results and application
+            # ==========================================================================
+            if hasattr(result, 'fix_result') and result.fix_result and result.fix_result.has_fixes():
+                st.divider()
+                st.header("🔧 Auto-Fix Suggestions")
+
+                fix_summary = result.fix_result.get_summary()
+                st.markdown(
+                    f"**Fixes generated:** {fix_summary.get('total_fixes', 0)} — "
+                    f"High confidence: {fix_summary.get('high_confidence_count', 0)}"
+                )
+
+                # List fixes
+                for i, fix in enumerate(result.fix_result.fixes, 1):
+                    with st.expander(f"Fix {i}: {fix.issue_description[:80]} ({fix.confidence.value})"):
+                        st.write(f"**Confidence:** {fix.confidence.value}")
+                        if fix.explanation:
+                            st.write(f"**Explanation:** {fix.explanation}")
+                        if fix.diff:
+                            st.code(fix.diff, language='')
+                        st.subheader("Original")
+                        st.code(fix.original_code or "", language=language)
+                        st.subheader("Fixed")
+                        st.code(fix.fixed_code or "", language=language)
+
+                # Apply fixes controls
+                col_a, col_b = st.columns([1, 1])
+                with col_a:
+                    selected_threshold = st.selectbox("Apply fixes with minimum confidence:", ["high", "medium", "low", "all"], index=0)
+                with col_b:
+                    apply_btn = st.button("🛠️ Apply fixes")
+
+                if apply_btn:
+                    # Apply fixes to the input code
+                    try:
+                        fixed_code = apply_fixes_to_code(code_input, result.fix_result, min_confidence=selected_threshold)
+                        st.success("✅ Fixes applied (preview below)")
+                        st.subheader("Fixed Code Preview")
+                        st.code(fixed_code, language=language)
+
+                        # Offer download
+                        st.download_button(
+                            label="💾 Download fixed code",
+                            data=fixed_code,
+                            file_name="fixed_code.txt",
+                            mime="text/plain"
+                        )
+                    except Exception as e:
+                        st.error(f"Failed to apply fixes: {e}")
 
 
 # ============================================================================
