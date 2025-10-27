@@ -217,21 +217,18 @@ def run_review(code: str, language: str, config: Dict[str, Any]) -> Optional[Rev
         from src.models.code_models import ParsedCode, CodeMetadata
         
         # Create basic metadata
+        lines = code.split('\n')
         metadata = CodeMetadata(
-            language=language,
-            total_lines=len(code.split('\n')),
-            blank_lines=sum(1 for line in code.split('\n') if not line.strip()),
-            comment_lines=0  # Will be calculated by AI if needed
+            line_count=len(lines),
+            blank_line_count=sum(1 for line in lines if not line.strip()),
+            comment_count=0  # Will be calculated by AI if needed
         )
         
         # Create parsed code object
         parsed_code = ParsedCode(
-            raw_code=code,
+            content=code,
             language=language,
-            metadata=metadata,
-            functions=[],  # AI will analyze structure
-            classes=[],
-            imports=[]
+            metadata=metadata
         )
         
         # Run review

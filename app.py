@@ -73,7 +73,7 @@ st.markdown("""
 # ============================================================================
 
 st.markdown('<h1 class="main-header">🔍 AI Code Quality Reviewer</h1>', unsafe_allow_html=True)
-st.markdown('<p class="subtitle">Hybrid code review combining rule-based analysis with AI-powered insights</p>', unsafe_allow_html=True)
+st.markdown('<p class="subtitle">AI-powered code review with intelligent insights and automated fixes</p>', unsafe_allow_html=True)
 
 
 # ============================================================================
@@ -83,73 +83,39 @@ st.markdown('<p class="subtitle">Hybrid code review combining rule-based analysi
 with st.sidebar:
     st.header("⚙️ Configuration")
     
-    # Review mode selection
-    st.subheader("Review Mode")
-    review_mode = st.radio(
-        "Select review mode:",
-        ["Quick Scan (Rules Only)", "Standard (Hybrid)", "Deep Analysis (AI Focus)"],
-        index=1,
-        help="Quick: Fast rule-based checks | Standard: Best of both | Deep: AI-powered analysis"
+    # Advanced configuration (always visible now)
+    st.subheader("🔧 AI Settings")
+    
+    ai_model = st.selectbox(
+        "AI Model",
+        ["gpt-4o-mini", "gpt-4o", "gpt-4"],
+        index=0,
+        help="gpt-4o-mini: Fast & cheap | gpt-4o: Balanced | gpt-4: Most capable"
     )
     
-    # Map display names to mode keys
-    mode_map = {
-        "Quick Scan (Rules Only)": "quick",
-        "Standard (Hybrid)": "standard",
-        "Deep Analysis (AI Focus)": "deep"
-    }
-    selected_mode = mode_map[review_mode]
+    ai_temperature = st.slider(
+        "Temperature",
+        min_value=0.0,
+        max_value=1.0,
+        value=0.3,
+        step=0.1,
+        help="Lower = more consistent, Higher = more creative"
+    )
     
     st.divider()
     
-    # Advanced configuration (expandable)
-    with st.expander("🔧 Advanced Settings"):
-        st.subheader("Rule-Based Reviewers")
-        enable_style = st.checkbox("Style Checker", value=True, help="Check naming conventions, formatting")
-        enable_complexity = st.checkbox("Complexity Analyzer", value=True, help="Check cyclomatic complexity")
-        enable_security = st.checkbox("Security Scanner", value=True, help="Detect hardcoded secrets, vulnerabilities")
-        
-        st.subheader("Auto-Fix")
-        enable_auto_fix = st.checkbox(
-            "Enable Auto-Fix (AI-generated)",
-            value=False,
-            help="Automatically generate fixes for detected issues (requires OpenAI API key)"
-        )
-        apply_threshold = st.selectbox(
-            "Apply fixes threshold",
-            ["high", "medium", "low", "all"],
-            index=0,
-            help="When applying fixes, only apply fixes at or above this confidence"
-        )
-        
-        st.subheader("AI Configuration")
-        enable_ai = st.checkbox("AI Reviewer", value=(selected_mode in ["standard", "deep"]), help="Use OpenAI for semantic analysis")
-        
-        if enable_ai:
-            ai_model = st.selectbox(
-                "AI Model",
-                ["gpt-4o-mini", "gpt-4o", "gpt-4"],
-                index=0,
-                help="gpt-4o-mini: Fast & cheap | gpt-4o: Balanced | gpt-4: Most capable"
-            )
-            
-            ai_temperature = st.slider(
-                "Temperature",
-                min_value=0.0,
-                max_value=1.0,
-                value=0.3,
-                step=0.1,
-                help="Lower = more consistent, Higher = more creative"
-            )
-        
-        st.subheader("Complexity Settings")
-        max_complexity = st.slider(
-            "Max Complexity Threshold",
-            min_value=1,
-            max_value=20,
-            value=10,
-            help="Maximum allowed cyclomatic complexity"
-        )
+    st.subheader("Auto-Fix")
+    enable_auto_fix = st.checkbox(
+        "Enable Auto-Fix (AI-generated)",
+        value=False,
+        help="Automatically generate fixes for detected issues (requires OpenAI API key)"
+    )
+    apply_threshold = st.selectbox(
+        "Apply fixes threshold",
+        ["high", "medium", "low", "all"],
+        index=0,
+        help="When applying fixes, only apply fixes at or above this confidence"
+    )
     
     st.divider()
     
@@ -213,25 +179,14 @@ if review_button:
     elif not validate_language_selection(language):
         st.error(f"❌ Unsupported language: {language}")
     else:
-        # Build configuration
-        if selected_mode != "custom":
-            config = get_review_mode_config(selected_mode)
-        else:
-            # Use advanced settings
-            config = build_config_from_ui_inputs({
-                "enable_style": enable_style,
-                "enable_complexity": enable_complexity,
-                "enable_security": enable_security,
-                "enable_ai": enable_ai and api_key is not None,
-                "ai_model": ai_model if enable_ai else "gpt-4o-mini",
-                "ai_temperature": ai_temperature if enable_ai else 0.3,
-                "max_complexity": max_complexity
-            })
-        # Inject auto-fix setting into config
-        try:
-            config["enable_auto_fix"] = enable_auto_fix
-        except Exception:
-            config.update({"enable_auto_fix": enable_auto_fix})
+        # Build AI-only configuration
+        config = {
+            "enable_ai": api_key is not None,
+            "ai_model": ai_model,
+            "ai_temperature": ai_temperature,
+            "enable_auto_fix": enable_auto_fix,
+            "auto_fix_threshold": apply_threshold
+        }
         
         # Show progress
         with st.spinner("🔍 Reviewing your code..."):
