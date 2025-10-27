@@ -64,24 +64,17 @@ my-ai-project/
 ├── src/
 │   ├── models/
 │   │   ├── code_models.py          # ParsedCode, CodeMetadata
-│   │   ├── review_models.py        # ReviewResult, ReviewIssue, Severity, IssueCategory
-│   │   └── code_fix_models.py      # CodeFix, CodeFixResult, FixConfidence
+│   │   └── review_models.py        # ReviewResult, ReviewIssue, Severity, IssueCategory
 │   ├── services/
-│   │   ├── code_parser.py          # Multi-language code parser
 │   │   ├── review_engine.py        # Review orchestration
-│   │   ├── ai_reviewer.py          # OpenAI integration + auto-fix
-│   │   └── code_fixer.py           # AI-powered fix generation
+│   │   └── ai_reviewer.py          # OpenAI integration
 │   └── streamlit_utils.py          # UI business logic
 ├── tests/
 │   └── unit/
-│       ├── test_code_parser.py     # 43 tests
-│       ├── test_review_engine.py   # 51 tests
-│       ├── test_review_models.py   # 31 tests
-│       ├── test_ai_reviewer.py     # 35 tests
-│       ├── test_ai_reviewer_autofix.py  # 25 tests
-│       ├── test_code_fixer.py      # 77 tests
-│       ├── test_code_fix_models.py # 22 tests
-│       └── test_streamlit_app.py   # 33 tests
+│       ├── test_review_engine.py   # Review engine tests
+│       ├── test_review_models.py   # Model tests
+│       ├── test_ai_reviewer.py     # AI reviewer tests
+│       └── test_streamlit_app.py   # UI tests
 ├── requirements.txt
 ├── pytest.ini
 └── .env                            # API configuration
@@ -189,32 +182,6 @@ for issue in result.issues:
     print(f"{issue.severity.value}: {issue.message}")
 ```
 
-### Auto-Fix Usage
-
-```python
-from src.services.ai_reviewer import AIReviewer
-
-# Initialize AI reviewer with auto-fix enabled
-reviewer = AIReviewer(config={"enable_auto_fix": True})
-
-# Review code and generate fixes
-review_result, fix_result = reviewer.review_with_fixes(parsed_code)
-
-# Check generated fixes
-print(f"Fixes generated: {len(fix_result.fixes)}")
-print(f"High confidence fixes: {len(fix_result.get_high_confidence_fixes())}")
-
-# Apply high-confidence fixes automatically
-fixed_code = reviewer.apply_fixes(
-    code=parsed_code.code,
-    fix_result=fix_result,
-    confidence_threshold="high"
-)
-
-print("Fixed code:")
-print(fixed_code)
-```
-
 ## 🧪 Testing
 
 ### Run All Tests
@@ -230,29 +197,18 @@ pytest tests/unit/ --cov=src --cov-report=html
 View coverage report: `htmlcov/index.html`
 
 ### Test Statistics
-- **295 total tests** (all passing) ✨
-- **100% code coverage** (882/882 statements) ✅
-- **10.00/10 pylint score** ⭐
+- **Comprehensive test coverage**
 - **TDD methodology** used throughout
 - Tests organized by component
 - Comprehensive edge case coverage
 
 ### Run Specific Test Suites
 ```bash
-# Code parser tests
-pytest tests/unit/test_code_parser.py
-
 # Review engine tests
 pytest tests/unit/test_review_engine.py
 
 # AI reviewer tests
 pytest tests/unit/test_ai_reviewer.py
-
-# AI auto-fix tests
-pytest tests/unit/test_ai_reviewer_autofix.py
-
-# Code fixer tests
-pytest tests/unit/test_code_fixer.py
 
 # Streamlit utilities tests
 pytest tests/unit/test_streamlit_app.py

@@ -4,12 +4,9 @@ Data models for code review results and issues.
 These Pydantic models represent the output of the code review process,
 including issues found, severity levels, and aggregated results.
 """
-from typing import List, Optional, Dict, Any, TYPE_CHECKING
+from typing import List, Optional, Dict, Any
 from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict, field_validator
-
-if TYPE_CHECKING:
-    from src.models.code_fix_models import CodeFixResult
 
 
 class Severity(str, Enum):
@@ -122,12 +119,6 @@ class ReviewResult(BaseModel):
     )
     review_timestamp: Optional[str] = Field(
         default=None, description="ISO timestamp of when review was performed"
-    )
-    
-    # Auto-fix integration (optional)
-    fix_result: Optional[Any] = Field(
-        default=None,
-        description="Optional CodeFixResult with generated fixes"
     )
     
     @field_validator('quality_score')

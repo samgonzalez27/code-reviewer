@@ -443,8 +443,6 @@ class ReviewEngine:
             ai_config["timeout"] = self.config["ai_timeout"]
         if "ai_system_prompt" in self.config:
             ai_config["system_prompt"] = self.config["ai_system_prompt"]
-        if "enable_auto_fix" in self.config:
-            ai_config["enable_auto_fix"] = self.config["enable_auto_fix"]
         
         return AIReviewer(config=ai_config)
     
@@ -484,10 +482,6 @@ class ReviewEngine:
                             continue
                     
                     combined_result.add_issue(issue)
-                
-                # Preserve fix_result if the reviewer generated fixes
-                if hasattr(reviewer_result, 'fix_result') and reviewer_result.fix_result:
-                    combined_result.fix_result = reviewer_result.fix_result
                     
             except Exception:
                 # Log error but continue with other reviewers (resilience)
