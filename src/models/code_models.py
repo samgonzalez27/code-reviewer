@@ -43,14 +43,6 @@ class CodeMetadata(BaseModel):
         default=0, ge=0,
         description="Number of actual code lines (excluding comments/blanks)"
     )
-    
-    @field_validator('comment_ratio')
-    @classmethod
-    def validate_comment_ratio(cls, v: float) -> float:
-        """Ensure comment ratio is between 0 and 1."""
-        if not 0.0 <= v <= 1.0:
-            raise ValueError("Comment ratio must be between 0 and 1")
-        return v
 
 
 class ParsedCode(BaseModel):
