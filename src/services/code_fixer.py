@@ -162,7 +162,9 @@ Do not include any text before or after the JSON."""
                 f"{i}. [{issue.severity.value.upper()}] {issue.message} ({line_info})"
             )
         
-        prompt = f"""Generate fixes for the following issues in this {parsed_code.language.upper()} code:
+        # Build prompt (split to avoid line-too-long)
+        lang_upper = parsed_code.language.upper()
+        prompt = f"""Generate fixes for the following issues in this {lang_upper} code:
 
 Issues to fix:
 {chr(10).join(issues_desc)}
@@ -222,6 +224,26 @@ Return your fixes as JSON only."""
         
         return '\n'.join(context_parts)
     
+    def _extract_json_from_content(self, content: str) -> Optional[Any]:
+        """Extract JSON data from response content."""
+        try:
+            data = json.loads(content)
+            if isinstance(data, dict) and "fixes" in data:
+                return data["fixes"]
+            if isinstance(data, list):
+                return data
+            return None
+        except json.JSONDecodeError:
+            # Try extracting from markdown code blocks
+            if "```json" in content:
+                json_start = content.find("```json") + 7
+                json_end = content.find("```", json_start)
+                if json_end > json_start:
+                    content_extracted = content[json_start:json_end].strip()
+                    data = json.loads(content_extracted)
+                    return data if isinstance(data, list) else data.get("fixes", [])
+            return None
+    
     def _parse_ai_response(
         self,
         response: ChatCompletion,
@@ -235,28 +257,10 @@ Return your fixes as JSON only."""
             if not content:
                 return fixes
             
-            # Try parsing as JSON
-            try:
-                data = json.loads(content)
-                if isinstance(data, dict) and "fixes" in data:
-                    fixes_data = data["fixes"]
-                elif isinstance(data, list):
-                    fixes_data = data
-                else:
-                    return fixes
-            except json.JSONDecodeError:
-                # Try extracting from markdown code blocks
-                if "```json" in content:
-                    json_start = content.find("```json") + 7
-                    json_end = content.find("```", json_start)
-                    if json_end > json_start:
-                        content = content[json_start:json_end].strip()
-                        data = json.loads(content)
-                        fixes_data = data if isinstance(data, list) else data.get("fixes", [])
-                    else:
-                        return fixes
-                else:
-                    return fixes
+            # Extract fixes data from JSON
+            fixes_data = self._extract_json_from_content(content)
+            if not fixes_data:
+                return fixes
             
             # Convert to CodeFix objects
             for fix_data in fixes_data:

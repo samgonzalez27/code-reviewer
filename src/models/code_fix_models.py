@@ -101,18 +101,35 @@ class CodeFixResult(BaseModel):
     )
     
     # Statistics
-    total_fixes: int = Field(default=0, description="Total number of fixes generated")
-    high_confidence_count: int = Field(default=0, description="Number of high/verified confidence fixes")
-    medium_confidence_count: int = Field(default=0, description="Number of medium confidence fixes")
-    low_confidence_count: int = Field(default=0, description="Number of low confidence fixes")
-    applied_count: int = Field(default=0, description="Number of fixes that have been applied")
+    total_fixes: int = Field(
+        default=0, description="Total number of fixes generated"
+    )
+    high_confidence_count: int = Field(
+        default=0, description="Number of high/verified confidence fixes"
+    )
+    medium_confidence_count: int = Field(
+        default=0, description="Number of medium confidence fixes"
+    )
+    low_confidence_count: int = Field(
+        default=0, description="Number of low confidence fixes"
+    )
+    applied_count: int = Field(
+        default=0, description="Number of fixes that have been applied"
+    )
     
     # Status
-    success: bool = Field(default=True, description="Whether fix generation succeeded")
-    error_message: Optional[str] = Field(default=None, description="Error message if generation failed")
+    success: bool = Field(
+        default=True, description="Whether fix generation succeeded"
+    )
+    error_message: Optional[str] = Field(
+        default=None, description="Error message if generation failed"
+    )
     
     # Metadata
-    fixer_name: str = Field(default="CodeFixer", description="Name of the service that generated fixes")
+    fixer_name: str = Field(
+        default="CodeFixer",
+        description="Name of the service that generated fixes"
+    )
     
     def add_fix(self, fix: CodeFix) -> None:
         """

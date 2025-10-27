@@ -16,6 +16,7 @@ from src.models.review_models import ReviewResult, ReviewIssue, Severity, IssueC
 from src.models.code_fix_models import CodeFixResult, FixConfidence
 
 
+# pylint: disable=too-many-instance-attributes
 class AIReviewer(ReviewStrategy):
     """AI-powered code reviewer using OpenAI's GPT models."""
     
