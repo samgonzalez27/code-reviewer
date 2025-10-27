@@ -11,7 +11,6 @@ from typing import Dict, List, Tuple, Any, Optional
 from collections import defaultdict
 
 from src.models.review_models import ReviewResult, ReviewIssue, Severity, IssueCategory
-from src.services.code_parser import CodeParser
 from src.services.review_engine import ReviewEngine
 from src.models.code_fix_models import CodeFixResult, FixConfidence, FixStatus
 
@@ -192,8 +191,8 @@ def validate_language_selection(language: str) -> bool:
     Returns:
         True if language is supported
     """
-    parser = CodeParser()
-    supported = parser.supported_languages()
+    # Support common languages - no longer using CodeParser
+    supported = ["python", "javascript", "typescript", "java", "cpp", "c", "go", "rust"]
     return language.lower() in supported
 
 
@@ -214,9 +213,26 @@ def run_review(code: str, language: str, config: Dict[str, Any]) -> Optional[Rev
         ReviewResult or None if error
     """
     try:
-        # Parse code
-        parser = CodeParser()
-        parsed_code = parser.parse(code, language)
+        # Create a simple ParsedCode object without using CodeParser
+        from src.models.code_models import ParsedCode, CodeMetadata
+        
+        # Create basic metadata
+        metadata = CodeMetadata(
+            language=language,
+            total_lines=len(code.split('\n')),
+            blank_lines=sum(1 for line in code.split('\n') if not line.strip()),
+            comment_lines=0  # Will be calculated by AI if needed
+        )
+        
+        # Create parsed code object
+        parsed_code = ParsedCode(
+            raw_code=code,
+            language=language,
+            metadata=metadata,
+            functions=[],  # AI will analyze structure
+            classes=[],
+            imports=[]
+        )
         
         # Run review
         engine = ReviewEngine(config=config)
