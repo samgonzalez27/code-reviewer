@@ -82,9 +82,6 @@ st.markdown('<p class="subtitle">AI-powered code review with intelligent insight
 with st.sidebar:
     st.header("⚙️ Configuration")
     
-    # Advanced configuration (always visible now)
-    st.subheader("🔧 AI Settings")
-    
     ai_model = st.selectbox(
         "AI Model",
         ["gpt-4o-mini", "gpt-4o", "gpt-4"],
