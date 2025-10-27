@@ -13,7 +13,7 @@ from openai.types import CompletionUsage
 
 from src.services.ai_reviewer import AIReviewer
 from src.models.code_models import ParsedCode, CodeMetadata
-from src.models.review_models import ReviewIssue, Severity, IssueCategory
+from src.models.review_models import ReviewIssue, ReviewResult, Severity, IssueCategory
 from src.models.code_fix_models import CodeFixResult, FixConfidence
 
 
@@ -120,7 +120,7 @@ class TestAIReviewerAutoFixConfiguration:
         """Should create CodeFixer instance if auto-fix enabled but none provided."""
         config = {"enable_auto_fix": True}
         
-        with patch('src.services.ai_reviewer.CodeFixer') as mock_fixer_class:
+        with patch('src.services.code_fixer.CodeFixer') as mock_fixer_class:
             reviewer = AIReviewer(client=mock_openai_client, config=config)
             # Should create CodeFixer with same client
             mock_fixer_class.assert_called_once()

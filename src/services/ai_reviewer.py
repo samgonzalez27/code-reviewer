@@ -6,13 +6,14 @@ context-aware code reviews that complement rule-based reviewers.
 """
 import os
 import json
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 from datetime import datetime
 from openai import OpenAI
 from openai.types.chat import ChatCompletion
 from src.services.review_engine import ReviewStrategy
 from src.models.code_models import ParsedCode
 from src.models.review_models import ReviewResult, ReviewIssue, Severity, IssueCategory
+from src.models.code_fix_models import CodeFixResult, FixConfidence
 
 
 class AIReviewer(ReviewStrategy):
@@ -63,6 +64,18 @@ Do not include any text before or after the JSON."""
         self.max_tokens = self.config.get("max_tokens", 2000)
         self.timeout = self.config.get("timeout", 30)
         self.system_prompt = self.config.get("system_prompt", self.DEFAULT_SYSTEM_PROMPT)
+        
+        # Auto-fix configuration
+        self.enable_auto_fix = self.config.get("enable_auto_fix", False)
+        self.code_fixer = None
+        
+        if self.enable_auto_fix:
+            # Use provided fixer or create one
+            if "code_fixer" in self.config:
+                self.code_fixer = self.config["code_fixer"]
+            else:
+                from src.services.code_fixer import CodeFixer
+                self.code_fixer = CodeFixer(client=self.client, config=self.config)
         
         # Usage tracking
         self.total_tokens_used = 0
@@ -121,6 +134,18 @@ Do not include any text before or after the JSON."""
             ))
         
         result.update_statistics()
+        
+        # Generate fixes if auto-fix is enabled and issues were found
+        if self.enable_auto_fix and result.total_issues > 0 and self.code_fixer:
+            try:
+                fixable_issues = self.get_fixable_issues(result.issues)
+                if fixable_issues:
+                    fix_result = self.code_fixer.generate_fixes(parsed_code, fixable_issues)
+                    result.fix_result = fix_result
+            except Exception:
+                # Don't fail review if fix generation fails
+                result.fix_result = CodeFixResult(success=False)
+        
         return result
     
     def _build_user_prompt(self, parsed_code: ParsedCode) -> str:
@@ -234,3 +259,150 @@ Return your findings as JSON only."""
             "estimated_cost_usd": round(self.total_cost, 4),
             "model": self.model
         }
+    
+    def review_with_fixes(
+        self,
+        parsed_code: ParsedCode,
+        auto_fix: bool = True
+    ) -> Tuple[ReviewResult, Optional[CodeFixResult]]:
+        """
+        Review code and generate fixes.
+        
+        Args:
+            parsed_code: The code to review
+            auto_fix: Whether to generate fixes (default: True)
+            
+        Returns:
+            Tuple of (ReviewResult, CodeFixResult or None)
+        """
+        # Perform review
+        review_result = self.review(parsed_code)
+        
+        # Generate fixes if requested and not already done
+        fix_result = None
+        if auto_fix:
+            # Check if fixes were already generated during review
+            if hasattr(review_result, 'fix_result') and review_result.fix_result is not None:
+                fix_result = review_result.fix_result
+            elif review_result.total_issues > 0:
+                # Generate fixes now
+                try:
+                    # Create fixer if needed
+                    if not self.code_fixer:
+                        from src.services.code_fixer import CodeFixer
+                        fixer = CodeFixer(client=self.client, config=self.config)
+                    else:
+                        fixer = self.code_fixer
+                    
+                    fixable_issues = self.get_fixable_issues(review_result.issues)
+                    if fixable_issues:
+                        fix_result = fixer.generate_fixes(parsed_code, fixable_issues)
+                    else:
+                        fix_result = CodeFixResult()
+                except Exception:
+                    fix_result = CodeFixResult(success=False)
+            else:
+                fix_result = CodeFixResult()
+        
+        return review_result, fix_result
+    
+    def get_fixable_issues(
+        self,
+        issues: List[ReviewIssue],
+        min_severity: Optional[Severity] = None
+    ) -> List[ReviewIssue]:
+        """
+        Filter issues to determine which are auto-fixable.
+        
+        Args:
+            issues: List of issues to filter
+            min_severity: Minimum severity to include (optional)
+            
+        Returns:
+            List of fixable issues
+        """
+        fixable = []
+        
+        # Severity hierarchy for comparison
+        severity_order = {
+            Severity.INFO: 0,
+            Severity.LOW: 1,
+            Severity.MEDIUM: 2,
+            Severity.HIGH: 3,
+            Severity.CRITICAL: 4,
+        }
+        
+        min_severity_value = severity_order.get(min_severity, 0) if min_severity else 0
+        
+        for issue in issues:
+            # Skip issues without line numbers (can't fix without location)
+            if issue.line_number is None:
+                continue
+            
+            # Check severity threshold
+            if severity_order.get(issue.severity, 0) < min_severity_value:
+                continue
+            
+            # Some categories are typically not auto-fixable
+            if issue.category == IssueCategory.COMPLEXITY:
+                # Complexity issues usually require manual refactoring
+                continue
+            
+            fixable.append(issue)
+        
+        return fixable
+    
+    def apply_fixes(
+        self,
+        parsed_code: ParsedCode,
+        fixes: CodeFixResult,
+        min_confidence: FixConfidence = FixConfidence.HIGH
+    ) -> str:
+        """
+        Apply fixes to code.
+        
+        Args:
+            parsed_code: The original parsed code
+            fixes: The fixes to apply
+            min_confidence: Minimum confidence level to apply (default: HIGH)
+            
+        Returns:
+            Modified code with fixes applied
+        """
+        try:
+            # Start with original code
+            modified_code = parsed_code.content
+            
+            # Filter fixes by confidence
+            confidence_order = {
+                FixConfidence.LOW: 0,
+                FixConfidence.MEDIUM: 1,
+                FixConfidence.HIGH: 2,
+                FixConfidence.VERIFIED: 3,
+            }
+            
+            min_confidence_value = confidence_order.get(min_confidence, 2)
+            
+            applicable_fixes = [
+                fix for fix in fixes.fixes
+                if confidence_order.get(fix.confidence, 0) >= min_confidence_value
+            ]
+            
+            # Sort fixes by line number (reverse order to avoid line number shifts)
+            applicable_fixes.sort(key=lambda f: f.line_start, reverse=True)
+            
+            # Apply fixes
+            for fix in applicable_fixes:
+                # Simple string replacement (in production, use more robust line-based replacement)
+                if fix.original_code in modified_code:
+                    modified_code = modified_code.replace(
+                        fix.original_code,
+                        fix.fixed_code,
+                        1  # Replace only first occurrence
+                    )
+            
+            return modified_code
+        
+        except Exception:
+            # On any error, return original code
+            return parsed_code.content
