@@ -277,3 +277,21 @@ class TestPromptGenerationResult:
         
         # Should still only have one SECURITY category
         assert result.categories_covered.count(IssueCategory.SECURITY) == 1
+    
+    def test_validate_max_prompts_accepts_valid_list(self):
+        """Validator should accept and return valid lists of 5 or fewer prompts."""
+        # Test that the validator returns the list when valid
+        prompts = [
+            PromptSuggestion(
+                category=cat,
+                prompt_text=f"Fix {cat.value}",
+                issue_count=1,
+                severity_summary="1 issue"
+            )
+            for cat in list(IssueCategory)[:5]
+        ]
+        
+        # Call validator directly - should return the list unchanged
+        result = PromptGenerationResult.validate_max_prompts(prompts)
+        assert result == prompts
+        assert len(result) == 5
