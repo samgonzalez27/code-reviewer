@@ -421,3 +421,503 @@ class TestReviewModes:
         default = get_default_config()
         
         assert config == default
+
+
+# ============================================================================
+# Test Prompt Generation Integration
+# ============================================================================
+
+class TestPromptGenerationIntegration:
+    """Test prompt generation integration with Streamlit UI."""
+    
+    def test_generate_copilot_prompts_returns_prompt_result(self):
+        """Should generate and return PromptGenerationResult."""
+        from src.streamlit_utils import generate_copilot_prompts
+        from src.models.prompt_models import PromptGenerationResult
+        
+        # Create review result with issues
+        review_result = ReviewResult()
+        review_result.add_issue(ReviewIssue(
+            severity=Severity.HIGH,
+            category=IssueCategory.SECURITY,
+            message="SQL injection vulnerability",
+            line_number=42
+        ))
+        
+        with patch('src.streamlit_utils.PromptGenerator') as mock_generator_class:
+            mock_generator = Mock()
+            mock_generator_class.return_value = mock_generator
+            
+            mock_result = PromptGenerationResult(language="python")
+            mock_generator.generate.return_value = mock_result
+            
+            result = generate_copilot_prompts(review_result, language="python", api_key="test-key")
+            
+            assert isinstance(result, PromptGenerationResult)
+            assert result == mock_result
+    
+    def test_generate_copilot_prompts_with_no_issues(self):
+        """Should return empty result when no issues exist."""
+        from src.streamlit_utils import generate_copilot_prompts
+        
+        review_result = ReviewResult()  # No issues
+        
+        with patch('src.streamlit_utils.PromptGenerator') as mock_generator_class:
+            mock_generator = Mock()
+            mock_generator_class.return_value = mock_generator
+            
+            from src.models.prompt_models import PromptGenerationResult
+            mock_result = PromptGenerationResult(language="python")
+            mock_generator.generate.return_value = mock_result
+            
+            result = generate_copilot_prompts(review_result, language="python", api_key="test-key")
+            
+            assert not result.has_prompts()
+    
+    def test_generate_copilot_prompts_with_no_api_key(self):
+        """Should handle missing API key gracefully."""
+        from src.streamlit_utils import generate_copilot_prompts
+        
+        review_result = ReviewResult()
+        review_result.add_issue(ReviewIssue(
+            severity=Severity.HIGH,
+            category=IssueCategory.SECURITY,
+            message="Security issue",
+            line_number=10
+        ))
+        
+        with patch.dict('os.environ', {}, clear=True):
+            result = generate_copilot_prompts(review_result, language="python")
+            
+            # Should return None or empty result, not crash
+            assert result is None or not result.has_prompts()
+    
+    def test_generate_copilot_prompts_passes_language(self):
+        """Should pass language parameter to generator."""
+        from src.streamlit_utils import generate_copilot_prompts
+        
+        review_result = ReviewResult()
+        review_result.add_issue(ReviewIssue(
+            severity=Severity.MEDIUM,
+            category=IssueCategory.STYLE,
+            message="Style issue",
+            line_number=5
+        ))
+        
+        with patch('src.streamlit_utils.PromptGenerator') as mock_generator_class:
+            mock_generator = Mock()
+            mock_generator_class.return_value = mock_generator
+            
+            from src.models.prompt_models import PromptGenerationResult
+            mock_generator.generate.return_value = PromptGenerationResult()
+            
+            generate_copilot_prompts(review_result, language="javascript", api_key="test-key")
+            
+            # Verify generate was called with javascript
+            mock_generator.generate.assert_called_once_with(review_result, language="javascript")
+    
+    def test_generate_copilot_prompts_handles_exception_gracefully(self):
+        """Should return empty result if exception occurs during generation."""
+        from src.streamlit_utils import generate_copilot_prompts
+        from src.models.prompt_models import PromptGenerationResult
+        
+        review_result = ReviewResult()
+        review_result.add_issue(ReviewIssue(
+            severity=Severity.HIGH,
+            category=IssueCategory.SECURITY,
+            message="Security issue",
+            line_number=10
+        ))
+        
+        with patch('src.streamlit_utils.PromptGenerator') as mock_generator_class:
+            mock_generator = Mock()
+            mock_generator_class.return_value = mock_generator
+            
+            # Simulate exception during generation
+            mock_generator.generate.side_effect = Exception("API Error")
+            
+            result = generate_copilot_prompts(review_result, language="python", api_key="test-key")
+            
+            # Should return empty result, not crash
+            assert isinstance(result, PromptGenerationResult)
+            assert not result.has_prompts()
+
+
+class TestPromptFormattingForUI:
+    
+    def test_generate_copilot_prompts_uses_existing_api_key(self):
+        """Should use API key from environment when available."""
+        from src.streamlit_utils import generate_copilot_prompts
+        
+        review_result = ReviewResult()
+        review_result.add_issue(ReviewIssue(
+            severity=Severity.HIGH,
+            category=IssueCategory.BUG_RISK,
+            message="Potential bug",
+            line_number=20
+        ))
+        
+        with patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key'}):
+            with patch('src.streamlit_utils.PromptGenerator') as mock_generator_class:
+                mock_generator = Mock()
+                mock_generator_class.return_value = mock_generator
+                
+                from src.models.prompt_models import PromptGenerationResult
+                mock_generator.generate.return_value = PromptGenerationResult()
+                
+                generate_copilot_prompts(review_result, language="python")
+                
+                # Should create PromptGenerator
+                mock_generator_class.assert_called_once()
+
+
+class TestPromptFormattingForUI:
+    """Test formatting prompts for display in Streamlit."""
+    
+    def test_format_prompt_for_display_basic(self):
+        """Should format a single prompt for display."""
+        from src.streamlit_utils import format_prompt_for_display
+        from src.models.prompt_models import PromptSuggestion
+        
+        prompt = PromptSuggestion(
+            category=IssueCategory.SECURITY,
+            prompt_text="Fix SQL injection vulnerabilities by using parameterized queries.",
+            issue_count=3,
+            severity_summary="2 high, 1 medium",
+            line_references=[42, 58, 103]
+        )
+        
+        formatted = format_prompt_for_display(prompt)
+        
+        assert isinstance(formatted, dict)
+        assert "category" in formatted
+        assert "prompt" in formatted
+        assert "issue_count" in formatted
+        assert "severity" in formatted
+        assert "lines" in formatted
+    
+    def test_format_prompt_for_display_includes_category_emoji(self):
+        """Should include emoji based on category."""
+        from src.streamlit_utils import format_prompt_for_display
+        from src.models.prompt_models import PromptSuggestion
+        
+        prompt = PromptSuggestion(
+            category=IssueCategory.SECURITY,
+            prompt_text="Fix security issues",
+            issue_count=2,
+            severity_summary="2 high"
+        )
+        
+        formatted = format_prompt_for_display(prompt)
+        
+        # Should have security-related emoji or indicator
+        assert "🔒" in formatted["category"] or "security" in formatted["category"].lower()
+    
+    def test_format_prompt_for_display_handles_no_line_references(self):
+        """Should handle prompts with no line references."""
+        from src.streamlit_utils import format_prompt_for_display
+        from src.models.prompt_models import PromptSuggestion
+        
+        prompt = PromptSuggestion(
+            category=IssueCategory.STYLE,
+            prompt_text="Improve code style",
+            issue_count=5,
+            severity_summary="5 low",
+            line_references=[]
+        )
+        
+        formatted = format_prompt_for_display(prompt)
+        
+        assert formatted["lines"] == "N/A" or formatted["lines"] == ""
+    
+    def test_format_prompts_for_display_list(self):
+        """Should format multiple prompts for display."""
+        from src.streamlit_utils import format_prompts_for_display
+        from src.models.prompt_models import PromptSuggestion, PromptGenerationResult
+        
+        result = PromptGenerationResult(language="python")
+        
+        result.add_prompt(PromptSuggestion(
+            category=IssueCategory.SECURITY,
+            prompt_text="Fix security issues",
+            issue_count=3,
+            severity_summary="3 high"
+        ))
+        
+        result.add_prompt(PromptSuggestion(
+            category=IssueCategory.STYLE,
+            prompt_text="Improve style",
+            issue_count=5,
+            severity_summary="5 low"
+        ))
+        
+        formatted_list = format_prompts_for_display(result)
+        
+        assert isinstance(formatted_list, list)
+        assert len(formatted_list) == 2
+        assert all(isinstance(item, dict) for item in formatted_list)
+    
+    def test_format_prompts_for_display_preserves_order(self):
+        """Should preserve prompt order (priority order)."""
+        from src.streamlit_utils import format_prompts_for_display
+        from src.models.prompt_models import PromptSuggestion, PromptGenerationResult
+        
+        result = PromptGenerationResult(language="python")
+        
+        # Add in specific order
+        result.add_prompt(PromptSuggestion(
+            category=IssueCategory.SECURITY,
+            prompt_text="Security first",
+            issue_count=1,
+            severity_summary="1 critical"
+        ))
+        
+        result.add_prompt(PromptSuggestion(
+            category=IssueCategory.COMPLEXITY,
+            prompt_text="Complexity second",
+            issue_count=2,
+            severity_summary="2 medium"
+        ))
+        
+        formatted_list = format_prompts_for_display(result)
+        
+        # Should maintain order
+        assert formatted_list[0]["prompt"] == "Security first"
+        assert formatted_list[1]["prompt"] == "Complexity second"
+
+
+class TestPromptExport:
+    """Test exporting prompts to various formats."""
+    
+    def test_export_prompts_to_text(self):
+        """Should export prompts as plain text."""
+        from src.streamlit_utils import export_prompts_to_text
+        from src.models.prompt_models import PromptSuggestion, PromptGenerationResult
+        
+        result = PromptGenerationResult(language="python")
+        result.add_prompt(PromptSuggestion(
+            category=IssueCategory.SECURITY,
+            prompt_text="Fix SQL injection by using parameterized queries.",
+            issue_count=2,
+            severity_summary="2 high",
+            line_references=[42, 58]
+        ))
+        
+        text = export_prompts_to_text(result)
+        
+        assert isinstance(text, str)
+        assert "SECURITY" in text.upper()
+        assert "Fix SQL injection" in text
+        assert "2 high" in text
+    
+    def test_export_prompts_to_text_empty_result(self):
+        """Should handle empty result gracefully."""
+        from src.streamlit_utils import export_prompts_to_text
+        from src.models.prompt_models import PromptGenerationResult
+        
+        result = PromptGenerationResult(language="python")
+        
+        text = export_prompts_to_text(result)
+        
+        assert "No prompts generated" in text
+    
+    def test_export_prompts_to_text_multiple_prompts(self):
+        """Should export multiple prompts with separators."""
+        from src.streamlit_utils import export_prompts_to_text
+        from src.models.prompt_models import PromptSuggestion, PromptGenerationResult
+        
+        result = PromptGenerationResult(language="python")
+        
+        result.add_prompt(PromptSuggestion(
+            category=IssueCategory.SECURITY,
+            prompt_text="Security prompt",
+            issue_count=2,
+            severity_summary="2 high"
+        ))
+        
+        result.add_prompt(PromptSuggestion(
+            category=IssueCategory.STYLE,
+            prompt_text="Style prompt",
+            issue_count=5,
+            severity_summary="5 low"
+        ))
+        
+        text = export_prompts_to_text(result)
+        
+        # Should have both prompts
+        assert "Security prompt" in text
+        assert "Style prompt" in text
+        # Should have separators or numbering
+        assert "1." in text or "---" in text or "=" in text
+    
+    def test_export_prompts_to_json(self):
+        """Should export prompts as JSON."""
+        from src.streamlit_utils import export_prompts_to_json
+        from src.models.prompt_models import PromptSuggestion, PromptGenerationResult
+        import json
+        
+        result = PromptGenerationResult(language="python")
+        result.add_prompt(PromptSuggestion(
+            category=IssueCategory.SECURITY,
+            prompt_text="Fix security issues",
+            issue_count=3,
+            severity_summary="3 high",
+            line_references=[10, 20, 30]
+        ))
+        
+        json_str = export_prompts_to_json(result)
+        
+        # Should be valid JSON
+        data = json.loads(json_str)
+        assert "prompts" in data or isinstance(data, list)
+    
+    def test_export_prompts_to_markdown(self):
+        """Should export prompts as Markdown."""
+        from src.streamlit_utils import export_prompts_to_markdown
+        from src.models.prompt_models import PromptSuggestion, PromptGenerationResult
+        
+        result = PromptGenerationResult(language="python")
+        result.add_prompt(PromptSuggestion(
+            category=IssueCategory.COMPLEXITY,
+            prompt_text="Reduce complexity",
+            issue_count=1,
+            severity_summary="1 high"
+        ))
+        
+        markdown = export_prompts_to_markdown(result)
+        
+        assert isinstance(markdown, str)
+        # Should have markdown headers
+        assert "#" in markdown
+        assert "Reduce complexity" in markdown
+    
+    def test_export_prompts_to_markdown_empty_result(self):
+        """Should handle empty result gracefully."""
+        from src.streamlit_utils import export_prompts_to_markdown
+        from src.models.prompt_models import PromptGenerationResult
+        
+        result = PromptGenerationResult(language="python")
+        
+        markdown = export_prompts_to_markdown(result)
+        
+        assert "No prompts generated" in markdown
+    
+    def test_export_prompts_to_markdown_with_line_references(self):
+        """Should include line references in markdown export."""
+        from src.streamlit_utils import export_prompts_to_markdown
+        from src.models.prompt_models import PromptSuggestion, PromptGenerationResult
+        
+        result = PromptGenerationResult(language="python")
+        result.add_prompt(PromptSuggestion(
+            category=IssueCategory.SECURITY,
+            prompt_text="Fix security issues",
+            issue_count=3,
+            severity_summary="3 high",
+            line_references=[10, 20, 30]
+        ))
+        
+        markdown = export_prompts_to_markdown(result)
+        
+        assert "Lines" in markdown
+        assert "10, 20, 30" in markdown
+
+
+class TestPromptCopyHelper:
+    """Test helper for copying prompts to clipboard."""
+    
+    def test_prepare_prompt_for_copy_single(self):
+        """Should prepare a single prompt for copying."""
+        from src.streamlit_utils import prepare_prompt_for_copy
+        from src.models.prompt_models import PromptSuggestion
+        
+        prompt = PromptSuggestion(
+            category=IssueCategory.SECURITY,
+            prompt_text="Fix SQL injection vulnerabilities using parameterized queries.",
+            issue_count=2,
+            severity_summary="2 high",
+            line_references=[42, 58]
+        )
+        
+        copy_text = prepare_prompt_for_copy(prompt)
+        
+        assert isinstance(copy_text, str)
+        assert "Fix SQL injection" in copy_text
+        # Should be clean text, ready for Copilot
+        assert copy_text.strip() == copy_text  # No leading/trailing whitespace
+    
+    def test_prepare_prompt_for_copy_includes_context(self):
+        """Should optionally include context in copy text."""
+        from src.streamlit_utils import prepare_prompt_for_copy
+        from src.models.prompt_models import PromptSuggestion
+        
+        prompt = PromptSuggestion(
+            category=IssueCategory.SECURITY,
+            prompt_text="Fix security issues",
+            issue_count=3,
+            severity_summary="2 high, 1 medium",
+            line_references=[10, 20, 30]
+        )
+        
+        # With context
+        copy_text = prepare_prompt_for_copy(prompt, include_context=True)
+        
+        assert "lines" in copy_text.lower() or "10" in copy_text
+        assert "security" in copy_text.lower()
+    
+    def test_prepare_prompt_for_copy_without_context(self):
+        """Should return just prompt text without context."""
+        from src.streamlit_utils import prepare_prompt_for_copy
+        from src.models.prompt_models import PromptSuggestion
+        
+        prompt = PromptSuggestion(
+            category=IssueCategory.STYLE,
+            prompt_text="Improve code style following PEP 8.",
+            issue_count=5,
+            severity_summary="5 low"
+        )
+        
+        # Without context (default)
+        copy_text = prepare_prompt_for_copy(prompt, include_context=False)
+        
+        assert copy_text == "Improve code style following PEP 8."
+
+
+class TestPromptUIHelpers:
+    """Test UI helper functions for prompt display."""
+    
+    def test_get_category_emoji(self):
+        """Should return appropriate emoji for each category."""
+        from src.streamlit_utils import get_category_emoji
+        
+        assert get_category_emoji(IssueCategory.SECURITY) in ["🔒", "🛡️", "🔐"]
+        assert get_category_emoji(IssueCategory.COMPLEXITY) in ["🔄", "📊", "🎯"]
+        assert get_category_emoji(IssueCategory.STYLE) in ["✨", "🎨", "💅"]
+        assert get_category_emoji(IssueCategory.PERFORMANCE) in ["⚡", "🚀", "💨"]
+        assert get_category_emoji(IssueCategory.BUG_RISK) in ["🐛", "⚠️", "🚨"]
+        assert get_category_emoji(IssueCategory.BEST_PRACTICES) in ["👍", "✅", "⭐"]
+        assert get_category_emoji(IssueCategory.DOCUMENTATION) in ["📝", "📚", "📄"]
+    
+    def test_get_category_color(self):
+        """Should return color code for each category."""
+        from src.streamlit_utils import get_category_color
+        
+        # Security should be a warning color
+        assert get_category_color(IssueCategory.SECURITY) in ["red", "orange", "#ff0000"]
+        # Style should be a neutral color
+        assert get_category_color(IssueCategory.STYLE) in ["blue", "gray", "#0000ff"]
+    
+    def test_should_generate_prompts(self):
+        """Should determine if prompts should be generated based on config."""
+        from src.streamlit_utils import should_generate_prompts
+        
+        # Should generate if API key exists and issues found
+        assert should_generate_prompts(has_api_key=True, has_issues=True) is True
+        
+        # Should not generate if no API key
+        assert should_generate_prompts(has_api_key=False, has_issues=True) is False
+        
+        # Should not generate if no issues
+        assert should_generate_prompts(has_api_key=True, has_issues=False) is False
+        
+        # Should not generate if neither
+        assert should_generate_prompts(has_api_key=False, has_issues=False) is False
