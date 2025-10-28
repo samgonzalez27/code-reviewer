@@ -23,19 +23,23 @@ A sophisticated code review tool that combines AI-powered analysis with GitHub C
   - Up to 5 prompts per review, one per issue category
   - Prioritized by severity (Critical → High → Medium → Low → Info)
   - Follows professional Python SWE standards
-  - Ready to copy and paste into GitHub Copilot
+  - Clean, readable text area display with automatic word wrapping
+  - Easy copy workflow: Click → Ctrl+A → Ctrl+C
   - Includes context: line numbers, severity, issue count
 - **Multiple Export Formats**: Text, JSON, Markdown
 - **Smart Grouping**: Issues organized by category (Security, Complexity, Style, etc.)
+- **Intuitive UX**: Simple, professional interface with no confusing elements
 
 ### 🎨 Professional Web Interface
 - Clean, responsive Streamlit UI
 - Real-time code review with progress indication
 - Configurable AI model and temperature
-- Quality score visualization
+- Quality score visualization with color-coded metrics
 - Issue grouping by severity and category
+- Expandable issue details with suggestions
+- **Optimized Prompt Display**: Clean text areas for easy reading and copying
 - Export results (JSON, Markdown, CSV)
-- One-click prompt copying for Copilot
+- Export prompts separately (Text, JSON, Markdown)
 
 ### 🌍 Multi-Language Support
 - Python
@@ -137,7 +141,20 @@ The app will open in your default browser at `http://localhost:8501`
 - **Prompt Export**: Text, JSON, Markdown for Copilot prompts
 - **Shareable Reports**: Professional formatting for team reviews
 
-## �📖 Usage
+## � Usage
+
+### 🔄 Complete Workflow
+
+```
+1. Paste Code → 2. AI Review → 3. Get Issues → 4. Receive Prompts → 5. Use Copilot → 6. Fix Code
+   ↓               ↓              ↓               ↓                    ↓                ↓
+Your code      AI analyzes    Categorized    Tailored fix       Copy & paste     Improved
+in editor      for issues     by severity    instructions       to Copilot       code quality
+```
+
+**Why this matters:** Unlike traditional code review tools that only identify problems, 
+this tool bridges the gap between **finding issues** and **fixing them** by generating 
+ready-to-use GitHub Copilot prompts that guide you through the remediation process.
 
 ### Web Interface
 
@@ -160,9 +177,10 @@ The app will open in your default browser at `http://localhost:8501`
 
 5. **Use Copilot Prompts** 🆕
    - Review generated prompts for each issue category
-   - Copy prompts with one click
+   - Read prompts in clean, formatted text areas
+   - Click inside text area → Ctrl+A (Select All) → Ctrl+C (Copy)
    - Paste into GitHub Copilot to get guided fixes
-   - Export prompts as Text, JSON, or Markdown
+   - Export prompts as Text, JSON, or Markdown for later use
 
 ### Programmatic Usage
 
@@ -329,16 +347,25 @@ This project practices what it preaches:
 
 ### GitHub Copilot Integration
 Unlike other code review tools, this project **bridges the gap** between finding issues and fixing them:
-1. **AI Review**: Identifies code quality issues
-2. **AI Prompts**: Generates tailored GitHub Copilot prompts
-3. **Guided Fixes**: Developers get step-by-step fix instructions
+1. **AI Review**: Identifies code quality issues with intelligent analysis
+2. **AI Prompts**: Generates tailored GitHub Copilot prompts for each issue category
+3. **Guided Fixes**: Developers get step-by-step fix instructions ready to paste
 4. **Professional Standards**: All prompts follow Python SWE best practices
+5. **Clean UX**: Prompts displayed in readable text areas with easy copy workflow
+
+### UX Excellence
+- **Iteratively refined UI** based on real user testing
+- **Simple, intuitive interface** - no complexity, just clarity
+- **Clean text areas** for prompt display with automatic word wrapping
+- **Easy copy workflow**: Click → Ctrl+A → Ctrl+C (no confusing HTML or dropdowns)
+- **Professional presentation** without sacrificing usability
 
 ### TDD Excellence
 - Every feature built using Test-Driven Development
 - Tests written BEFORE implementation
 - 100% coverage maintained throughout development
 - Comprehensive edge case coverage
+- Real-world testing integrated into development process
 
 ## 🔒 Security
 
