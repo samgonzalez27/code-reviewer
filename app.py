@@ -333,30 +333,16 @@ if review_button:
                             
                             st.markdown("### 📋 Prompt for Copilot:")
                             
-                            # Display prompt in a scrollable container with word wrap
-                            # Using a container with custom styling for better readability
-                            st.markdown(
-                                f'<div style="background-color: #f0f2f6; padding: 15px; '
-                                f'border-radius: 5px; white-space: pre-wrap; '
-                                f'word-wrap: break-word; max-height: 300px; '
-                                f'overflow-y: auto; font-family: monospace; font-size: 14px;">'
-                                f'{prompt_data["prompt"]}'
-                                f'</div>',
-                                unsafe_allow_html=True
+                            # Display prompt in a clean, readable text area
+                            # Users can read it AND copy it easily from the same place
+                            st.text_area(
+                                label="Prompt text",
+                                value=prompt_data['prompt'],
+                                height=200,
+                                key=f"prompt_display_{i}",
+                                label_visibility="collapsed",
+                                help="Click inside and use Ctrl+A (Select All) then Ctrl+C (Copy) to copy this prompt"
                             )
-                            
-                            st.markdown("")  # Add spacing
-                            
-                            # Provide the prompt in a copyable text area (hidden by default)
-                            with st.expander("📋 Click to reveal copyable text"):
-                                st.text_area(
-                                    label="Copy this text",
-                                    value=prompt_data['prompt'],
-                                    height=150,
-                                    key=f"copy_area_{i}",
-                                    help="Select all (Ctrl+A / Cmd+A) and copy (Ctrl+C / Cmd+C)",
-                                    label_visibility="collapsed"
-                                )
                     
                     # Export prompts section
                     st.subheader("💾 Export Prompts")
