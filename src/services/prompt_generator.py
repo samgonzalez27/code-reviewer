@@ -21,8 +21,10 @@ class PromptGenerator:
     tailored for GitHub Copilot with Python SWE best practices.
     """
     
-    DEFAULT_SYSTEM_PROMPT = """You are an expert Python software engineer helping developers fix code issues.
-Generate clear, actionable prompts that can be used with GitHub Copilot to address specific code quality issues.
+    DEFAULT_SYSTEM_PROMPT = """You are an expert Python software engineer \
+helping developers fix code issues.
+Generate clear, actionable prompts that can be used with GitHub Copilot to \
+address specific code quality issues.
 Your prompts should:
 - Follow professional Python SWE standards and best practices
 - Be specific and actionable
@@ -66,7 +68,11 @@ Keep prompts concise but comprehensive (2-4 sentences)."""
         self.max_prompts = self.config.get("max_prompts", 5)
         self.timeout = self.config.get("timeout", 30)
     
-    def generate(self, review_result: ReviewResult, language: str = "python") -> PromptGenerationResult:
+    def generate(
+        self,
+        review_result: ReviewResult,
+        language: str = "python"
+    ) -> PromptGenerationResult:
         """
         Generate prompts for fixing code issues.
         
@@ -107,14 +113,20 @@ Keep prompts concise but comprehensive (2-4 sentences)."""
         
         return result
     
-    def _group_issues_by_category(self, issues: List[ReviewIssue]) -> Dict[IssueCategory, List[ReviewIssue]]:
+    def _group_issues_by_category(
+        self,
+        issues: List[ReviewIssue]
+    ) -> Dict[IssueCategory, List[ReviewIssue]]:
         """Group issues by their category."""
         grouped = defaultdict(list)
         for issue in issues:
             grouped[issue.category].append(issue)
         return dict(grouped)
     
-    def _prioritize_categories(self, issues_by_category: Dict[IssueCategory, List[ReviewIssue]]) -> List[IssueCategory]:
+    def _prioritize_categories(
+        self,
+        issues_by_category: Dict[IssueCategory, List[ReviewIssue]]
+    ) -> List[IssueCategory]:
         """
         Prioritize categories based on severity and issue count.
         
@@ -138,7 +150,10 @@ Keep prompts concise but comprehensive (2-4 sentences)."""
         
         return sorted(issues_by_category.keys(), key=category_priority)
     
-    def _generate_severity_summary(self, issues: List[ReviewIssue]) -> str:
+    def _generate_severity_summary(
+        self,
+        issues: List[ReviewIssue]
+    ) -> str:
         """Generate a severity summary string like '2 high, 3 medium'."""
         severity_counts = defaultdict(int)
         for issue in issues:
@@ -146,7 +161,11 @@ Keep prompts concise but comprehensive (2-4 sentences)."""
         
         # Build summary in severity order
         parts = []
-        for severity in [Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM, Severity.LOW, Severity.INFO]:
+        severity_order = [
+            Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM,
+            Severity.LOW, Severity.INFO
+        ]
+        for severity in severity_order:
             if severity in severity_counts:
                 count = severity_counts[severity]
                 parts.append(f"{count} {severity.value}")
@@ -183,7 +202,8 @@ Keep prompts concise but comprehensive (2-4 sentences)."""
         issues_text = "\n".join(issue_details)
         
         # Build user prompt
-        user_prompt = f"""Generate a GitHub Copilot prompt to fix the following {category.value} issues in {language} code:
+        user_prompt = f"""Generate a GitHub Copilot prompt to fix the \
+following {category.value} issues in {language} code:
 
 {issues_text}
 
@@ -194,7 +214,8 @@ The prompt should:
 - Be 2-4 sentences long
 - Include context about why these fixes are important
 
-Generate ONLY the prompt text that a developer would paste into GitHub Copilot."""
+Generate ONLY the prompt text that a developer would paste into \
+GitHub Copilot."""
         
         # Call OpenAI API
         response = self.client.chat.completions.create(

@@ -456,8 +456,10 @@ def generate_copilot_prompts(
         return PromptGenerationResult(language=language)
     
     try:
-        # Create generator and generate prompts
-        generator = PromptGenerator(api_key=api_key)
+        # Create OpenAI client and generator
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+        generator = PromptGenerator(client=client)
         result = generator.generate(review_result, language=language)
         return result
     except Exception:
@@ -540,7 +542,7 @@ def export_prompts_to_text(result: PromptGenerationResult) -> str:
         if prompt.line_references:
             lines.append(f"   Lines: {', '.join(str(line) for line in prompt.line_references)}")
         lines.append("")
-        lines.append(f"   Prompt:")
+        lines.append("   Prompt:")
         lines.append(f"   {prompt.prompt_text}")
         lines.append("")
         lines.append("-" * 80)
