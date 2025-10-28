@@ -453,7 +453,6 @@ class TestPromptGeneratorErrorHandling:
     def test_handles_openai_api_error_gracefully(self):
         """Should handle OpenAI API errors without crashing."""
         from src.services.prompt_generator import PromptGenerator
-        from openai import APIError
         
         mock_client = Mock()
         generator = PromptGenerator(client=mock_client)
@@ -466,13 +465,14 @@ class TestPromptGeneratorErrorHandling:
             line_number=10
         ))
         
-        # Mock API error
-        mock_client.chat.completions.create.side_effect = APIError("API error")
+        # Mock API error - just use Exception since APIError requires request object
+        mock_client.chat.completions.create.side_effect = Exception("API error")
         
         result = generator.generate(review_result, language="python")
         
         # Should return empty result rather than crash
         assert isinstance(result, PromptGenerationResult)
+        assert not result.has_prompts()
         assert not result.has_prompts()
     
     def test_handles_timeout_gracefully(self):
