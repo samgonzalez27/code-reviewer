@@ -28,7 +28,15 @@ from src.streamlit_utils import (
     export_to_markdown,
     export_to_csv,
     get_review_mode_config,
-    build_config_from_ui_inputs
+    build_config_from_ui_inputs,
+    generate_copilot_prompts,
+    format_prompts_for_display,
+    export_prompts_to_text,
+    export_prompts_to_json,
+    export_prompts_to_markdown,
+    prepare_prompt_for_copy,
+    get_category_emoji,
+    should_generate_prompts
 )
 from src.models.review_models import Severity
 
@@ -293,6 +301,83 @@ if review_button:
                                 st.caption(f"Rule ID: {issue.rule_id}")
             else:
                 st.success("🎉 No issues found! Your code looks great!")
+            
+            # ============================================================================
+            # GitHub Copilot Prompts
+            # ============================================================================
+            
+            if should_generate_prompts(has_api_key=bool(api_key), has_issues=(result.total_issues > 0)):
+                st.divider()
+                st.header("🤖 GitHub Copilot Prompts")
+                st.markdown("""
+                    AI-generated prompts to help you fix the issues found. 
+                    Copy and paste these into GitHub Copilot for guided assistance.
+                """)
+                
+                with st.spinner("🤖 Generating Copilot prompts..."):
+                    prompt_result = generate_copilot_prompts(result, language=language)
+                
+                if prompt_result and prompt_result.has_prompts():
+                    # Store prompts in session state for export
+                    st.session_state['last_prompts'] = prompt_result
+                    
+                    formatted_prompts = format_prompts_for_display(prompt_result)
+                    
+                    st.info(f"💡 Generated {len(formatted_prompts)} prompt(s) addressing {prompt_result.total_issues_covered} issue(s)")
+                    
+                    for i, prompt_data in enumerate(formatted_prompts, 1):
+                        with st.expander(f"**{i}. {prompt_data['category']}** - {prompt_data['issue_count']} issue(s)", expanded=(i == 1)):
+                            st.markdown(f"**Severity:** {prompt_data['severity']}")
+                            if prompt_data['lines'] != "N/A":
+                                st.markdown(f"**Lines:** {prompt_data['lines']}")
+                            
+                            st.markdown("### 📋 Prompt for Copilot:")
+                            st.code(prompt_data['prompt'], language=None)
+                            
+                            # Copy button
+                            st.button(
+                                "📋 Copy to Clipboard",
+                                key=f"copy_prompt_{i}",
+                                help="Click to copy this prompt",
+                                on_click=lambda: st.toast("Prompt copied! Paste it into GitHub Copilot", icon="✅")
+                            )
+                    
+                    # Export prompts section
+                    st.subheader("💾 Export Prompts")
+                    
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        prompts_text = export_prompts_to_text(prompt_result)
+                        st.download_button(
+                            label="📄 Download as Text",
+                            data=prompts_text,
+                            file_name="copilot_prompts.txt",
+                            mime="text/plain"
+                        )
+                    
+                    with col2:
+                        prompts_json = export_prompts_to_json(prompt_result)
+                        st.download_button(
+                            label="📄 Download as JSON",
+                            data=prompts_json,
+                            file_name="copilot_prompts.json",
+                            mime="application/json"
+                        )
+                    
+                    with col3:
+                        prompts_md = export_prompts_to_markdown(prompt_result)
+                        st.download_button(
+                            label="📝 Download as Markdown",
+                            data=prompts_md,
+                            file_name="copilot_prompts.md",
+                            mime="text/markdown"
+                        )
+                else:
+                    st.warning("⚠️ Could not generate prompts. Please check your API key.")
+            elif result.total_issues > 0 and not api_key:
+                st.divider()
+                st.info("💡 **Tip:** Add an OpenAI API key to get AI-generated prompts for fixing these issues with GitHub Copilot!")
             
             # ============================================================================
             # Export Options
