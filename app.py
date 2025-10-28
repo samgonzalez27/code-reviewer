@@ -332,15 +332,31 @@ if review_button:
                                 st.markdown(f"**Lines:** {prompt_data['lines']}")
                             
                             st.markdown("### 📋 Prompt for Copilot:")
-                            st.code(prompt_data['prompt'], language=None)
                             
-                            # Copy button
-                            st.button(
-                                "📋 Copy to Clipboard",
-                                key=f"copy_prompt_{i}",
-                                help="Click to copy this prompt",
-                                on_click=lambda: st.toast("Prompt copied! Paste it into GitHub Copilot", icon="✅")
+                            # Display prompt in a scrollable container with word wrap
+                            # Using a container with custom styling for better readability
+                            st.markdown(
+                                f'<div style="background-color: #f0f2f6; padding: 15px; '
+                                f'border-radius: 5px; white-space: pre-wrap; '
+                                f'word-wrap: break-word; max-height: 300px; '
+                                f'overflow-y: auto; font-family: monospace; font-size: 14px;">'
+                                f'{prompt_data["prompt"]}'
+                                f'</div>',
+                                unsafe_allow_html=True
                             )
+                            
+                            st.markdown("")  # Add spacing
+                            
+                            # Provide the prompt in a copyable text area (hidden by default)
+                            with st.expander("📋 Click to reveal copyable text"):
+                                st.text_area(
+                                    label="Copy this text",
+                                    value=prompt_data['prompt'],
+                                    height=150,
+                                    key=f"copy_area_{i}",
+                                    help="Select all (Ctrl+A / Cmd+A) and copy (Ctrl+C / Cmd+C)",
+                                    label_visibility="collapsed"
+                                )
                     
                     # Export prompts section
                     st.subheader("💾 Export Prompts")
